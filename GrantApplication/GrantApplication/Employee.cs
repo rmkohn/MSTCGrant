@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Web;
 
@@ -137,6 +138,40 @@ namespace GrantApplication
             }
             return firstName + " " + lastName + " - " + jobTitle;
         }
-    }
+		public Employee() { }
+		public Employee(DataRow dr)
+		{
+			this.ID = (int)dr[0];
+			this.EmpNum = dr[1].ToString();
+			this.firstName = dr[3].ToString();
+			this.lastName = dr[2].ToString();
+			this.jobTitle = dr[4].ToString();
+			if (dr[5] != DBNull.Value)
+			{
+				this.emailAddress = dr[5].ToString();
+			}
+			if (dr[6] != DBNull.Value)
+			{
+				this.password = dr[6].ToString();
+			}
+			this.registered = (bool)dr[7];
+			this.manager = (bool)dr[8];
+			this.defaultSupervisor = dr[9].ToString();
+			if (this.defaultSupervisor == string.Empty || this.defaultSupervisor == "0")
+			{
+				this.defaultSupervisor = "699"; //Marie Schmieder's emp ID.
+			}
+		}
+		private String HashPassword(string pass)
+		{
+			return pass;
+			// FIXME for the love of god
+		}
+
+		internal static bool TestPassword(Employee emp, string p)
+		{
+			return emp != null && emp.password == emp.HashPassword(p);
+		}
+	}
    
 }

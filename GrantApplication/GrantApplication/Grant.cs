@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Web;
 
@@ -29,7 +30,18 @@ namespace GrantApplication
 
         public Grant()
         {
-            
         }
+		public static Grant fromRow(DataRow dr)
+		{
+			Grant g = new Grant();
+			g.ID = (int)dr[0];
+			g.stateCatalogNum = dr[1].ToString();
+			g.category = dr[2].ToString();
+			g.grantNumber = dr[3].ToString();
+			g.grantTitle = dr[4].ToString();
+			g.grantManagerLast = dr[5].ToString();
+			g.grantManagerFirst = dr[6].ToString();
+			return g;
+		}
     }
 }

@@ -18,7 +18,8 @@ using System.Threading;
 namespace GrantApplication
 {
     public partial class _Default : System.Web.UI.Page
-    {
+	{
+		public const string testAddress = "MSTCGrantApp@gmail.com";
         public static int[] totalDaysInMonth = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
         protected void Page_Load(object sender, EventArgs e)
         {
@@ -1230,8 +1231,14 @@ namespace GrantApplication
                 if (mO.grants[xx].ID != 28 && mO.grants[xx].ID != 52 && mO.grants[xx].ID != 53)  //have to filter out non-grant and leave time from the request.  03/03/2013
                 {
                     Employee sup = mO.supervisors[xx];
+#if RELEASE
                     MailMessage mailObj = new MailMessage("GrantAllocations@mid-state.net", sup.emailAddress, "Grant Approval Required",
                                    formulateEmailBody(sup, mO.emp, mO.selDate, mO.grants[xx].ID));
+#else
+					MailMessage mailObj = new MailMessage("GrantAllocations@mid-state.net", testAddress, "Grant Approval Required"
+									+" (email intended for " + sup.emailAddress + ")",
+                                   formulateEmailBody(sup, mO.emp, mO.selDate, mO.grants[xx].ID));
+#endif
                     mailObj.IsBodyHtml = true;
                     SmtpClient SMTPServer = new SmtpClient("localhost"); //outlook.college.mstc.tech
                     SMTPServer.ServicePoint.MaxIdleTime = 1;
@@ -1247,8 +1254,13 @@ namespace GrantApplication
             for (int xx = 0; xx < mO.supervisors.Count; xx++)
             {
                 Employee sup = mO.supervisors[xx];
+#if RELEASE
                 MailMessage mailObj = new MailMessage("GrantAllocations@mid-state.net", sup.emailAddress, "Final Grant Approval Review", mO.bodyTxt);
-                mailObj.IsBodyHtml = true;
+#else
+				MailMessage mailObj = new MailMessage("GrantAllocations@mid-state.net", testAddress,
+					"Final Grant Approval Review (email intended for "+sup.emailAddress+")", mO.bodyTxt);
+#endif
+				mailObj.IsBodyHtml = true;
                 SmtpClient SMTPServer = new SmtpClient("localhost"); //outlook.college.mstc.tech
                 SMTPServer.ServicePoint.MaxIdleTime = 1;
                 SMTPServer.Send(mailObj);
@@ -1258,29 +1270,41 @@ namespace GrantApplication
 
         public static void emailerBaby()
         {
+#if RELEASE
             MailMessage mailObj = new MailMessage("GrantAllocations@mid-state.net", "stilsons@hotmail.com", "Grant Approval Required",
                                "Let's do some testing!");
+#else
+			MailMessage mailObj = new MailMessage("GrantAllocations@mid-state.net", testAddress, "Grant Approval Required",
+                               "Let's do some testing!");
+#endif
             mailObj.IsBodyHtml = true;
             SmtpClient SMTPServer = new SmtpClient("localhost"); //outlook.college.mstc.tech
             SMTPServer.Send(mailObj);
         }
 
-        [System.Web.Services.WebMethod(true)]
-        [System.Web.Script.Services.ScriptMethod]
-        public static bool sendApproveOrDisapproveEmail(string reasonTxt, bool approved)
+		[System.Web.Services.WebMethod(true)]
+		[System.Web.Script.Services.ScriptMethod]
+		public static bool sendApproveOrDisapproveEmail(string reasonTxt, bool approved)
+		{
+			List<Employee> emps = (List<Employee>)HttpContext.Current.Session["CurrentEmployeeList"];
+			Employee sup = (Employee)HttpContext.Current.Session["Supervisor"];
+			int month = System.Convert.ToInt32(HttpContext.Current.Session["month"]);
+			int year = System.Convert.ToInt32(HttpContext.Current.Session["Year"]);
+			return sendApproveOrDisapproveEmailStateless(reasonTxt, approved, emps[0], sup, month, year);
+		}
+
+        public static bool sendApproveOrDisapproveEmailStateless(string reasonTxt, bool approved, Employee emp, Employee sup, int month, int year)
         {
-            List<Employee> emps = (List<Employee>)HttpContext.Current.Session["CurrentEmployeeList"];
-            Employee sup = (Employee)HttpContext.Current.Session["Supervisor"];
             List<Employee> sups = new List<Employee>();
             sups.Add(sup);
 
             MailObject mO = new MailObject();
             mO.supervisors = sups;
-            mO.emp = emps[0];
+			mO.emp = emp;
             mO.approved = approved;
             mO.reason = reasonTxt;
-            mO.month = System.Convert.ToInt32(HttpContext.Current.Session["month"]);
-            mO.year = System.Convert.ToInt32(HttpContext.Current.Session["Year"]);
+			mO.month = month;
+			mO.year = year;
 
             Thread t = new Thread(approvalThread);
             t.Start(mO);
@@ -1296,7 +1320,12 @@ namespace GrantApplication
         {
             MailObject mO = (MailObject)mailObj;
             string subject = (mO.approved) ? "Grant hours approved!" : "Grant hours disapproved.";
+#if RELEASE
             MailMessage mailMess = new MailMessage("GrantAllocations@mid-state.net", mO.emp.emailAddress, subject, formulateResultsEmail(mO));
+#else
+            MailMessage mailMess = new MailMessage("GrantAllocations@mid-state.net (intended for "+mO.emp.emailAddress+")",
+				testAddress, subject, formulateResultsEmail(mO));
+#endif
             mailMess.IsBodyHtml = true;
             SmtpClient SMTPServer = new SmtpClient("localhost"); //outlook.college.mstc.tech
             SMTPServer.ServicePoint.MaxIdleTime = 1;
@@ -1442,18 +1471,24 @@ namespace GrantApplication
             return sb.ToString();
         }
 
-        [System.Web.Services.WebMethod(true)]
-        [System.Web.Script.Services.ScriptMethod]
+		[System.Web.Services.WebMethod(true)]
+		[System.Web.Script.Services.ScriptMethod]
         public static bool approveOrDisapprove(bool approved, string reason)
         {
             List<Employee> emps = (List<Employee>)HttpContext.Current.Session["CurrentEmployeeList"];
             int month = (int)HttpContext.Current.Session["month"];
             int year = (int)HttpContext.Current.Session["Year"];
-            List<Grant> gS = (List<Grant>)HttpContext.Current.Session["SelectedGrants"];
+			List<Grant> gS = (List<Grant>)HttpContext.Current.Session["SelectedGrants"];
+			Employee sup = (Employee)HttpContext.Current.Session["Supervisor"];
+			return approveOrDisapproveStateless(approved, reason, emps[0], sup, gS, month, year);
+		}
+		public static bool approveOrDisapproveStateless(bool approved, string reason, Employee emp, Employee sup,
+			List<Grant> gS, int month, int year)
+		{
             List<Grant> gG = gS.Where(g => g.ID != 52 && g.ID != 53).ToList(); //Have to eliminate non-grant and leave time from the list.
             GrantMonth.status stat = (approved) ? GrantMonth.status.approved : GrantMonth.status.disapproved;
             int istat = System.Convert.ToInt32(stat);
-            string update = "update WorkMonth set status=" + istat.ToString() + " where EmpID=" + emps[0].ID.ToString() + " and WorkingMonth=" + month.ToString() +
+            string update = "update WorkMonth set status=" + istat.ToString() + " where EmpID=" + emp.ID.ToString() + " and WorkingMonth=" + month.ToString() +
                     " and WorkYear=" + year.ToString() + " and GrantID=" + gG[0].ID.ToString();
 
             OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
@@ -1463,12 +1498,13 @@ namespace GrantApplication
             {
                 comm.ExecuteNonQuery();
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
                 return false;
             }
             conn.Close();
-            return sendApproveOrDisapproveEmail(reason, approved);            
+			//return sendApproveOrDisapproveEmail(reason, approved);
+			return sendApproveOrDisapproveEmailStateless(reason, approved, emp, sup, month, year);
         }
         public static bool sendMarieApprovalEmail(int month, int year, Employee emp, int grantID)
         {           
