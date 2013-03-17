@@ -64,53 +64,18 @@ namespace GrantApplication.Account
 
         protected List<Employee> checkUser()
         {
-            OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
-            conn.Open();
-            string strLog = "select * from EmployeeList where EmployeeNUm=" + LoginUser.UserName;
-            OleDbCommand comm = new OleDbCommand();
-            comm.CommandText = strLog;
-            comm.CommandType = System.Data.CommandType.Text;
-            comm.Connection = conn;
-            DataSet set = new DataSet();
-            OleDbDataAdapter adapter = new OleDbDataAdapter();
-            adapter.SelectCommand = comm;
+            List<Employee> emps;
             try
-            {
-                adapter.Fill(set);
+			{
+				emps = OleDBHelper.query(
+				   "select * from EmployeeList where EmployeeNUm = ?",
+				   new string[] { LoginUser.UserName },
+				   row => new Employee(row)
+				).ToList();
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
                 return null;
-            }
-            List<Employee> emps = new List<Employee>();
-            if (set.Tables != null && set.Tables[0].Rows.Count > 0)
-            {
-                foreach (DataRow dr in set.Tables[0].Rows)
-                {
-                    Employee emp = new Employee();
-                    emp.ID = (int)dr[0];
-                    emp.EmpNum = dr[1].ToString();
-                    emp.firstName = dr[3].ToString();
-                    emp.lastName = dr[2].ToString();
-                    emp.jobTitle = dr[4].ToString();                   
-                    if (dr[5] != DBNull.Value)
-                    {
-                        emp.emailAddress = dr[5].ToString();
-                    }
-                    if (dr[6] != DBNull.Value)
-                    {
-                        emp.password = dr[6].ToString();
-                    }
-                    emp.registered = (bool)dr[7];
-                    emp.manager = (bool)dr[8];
-                    emp.defaultSupervisor = dr[9].ToString();
-                    if (emp.defaultSupervisor == string.Empty || emp.defaultSupervisor == "0")
-                    {
-                        emp.defaultSupervisor = "699"; //Marie Schmieder's emp ID.
-                    }
-                    emps.Add(emp);
-                }                                
-                conn.Close();
             }
             return emps;
         }
@@ -120,9 +85,8 @@ namespace GrantApplication.Account
             List<Employee> emps = checkUser();
             if (emps == null || emps.Count < 1)
             {
-                
-                    Response.Redirect("../NotAllowed.aspx");
-                    lblScrewedUp.Visible = true;
+                Response.Redirect("../NotAllowed.aspx");
+                lblScrewedUp.Visible = true;
             } 
            else if (!emps[0].registered)
            {
@@ -136,7 +100,7 @@ namespace GrantApplication.Account
             }
             else
             {
-                if (emps[0].password != LoginUser.Password)
+			   if (!Employee.TestPassword(emps[0], LoginUser.Password))
                 {
                     lblScrewedUp.Visible = true;
                     return;

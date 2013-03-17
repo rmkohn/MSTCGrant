@@ -24,89 +24,66 @@ namespace GrantApplication.Account
         }
         protected void CrankIt(object sender, EventArgs e)
         {
-            OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
-            conn.Open();
-            string strLog = "update employeelist set EmployeeList.registered=true, EmployeeList.EmailAddress='" + RegisterUser.Email + "', EmployeeList.[UserPass]='" + RegisterUser.Password;
-            strLog += "' where (EmployeeList.EmployeeNUm=" + RegisterUser.UserName + ");";
-            OleDbCommand comm = new OleDbCommand();
-            comm.CommandText = strLog;
-            comm.CommandType = System.Data.CommandType.Text;
-            comm.Connection = conn;
-            Employee emp = new Employee();
-            emp.EmpNum = RegisterUser.UserName;
-            try
-            {
-                comm.ExecuteNonQuery();
-                comm.CommandText = "select @@identity;";
-                emp.ID = (int)comm.ExecuteScalar();
-                conn.Close();
-            }
-            catch (System.Exception ex)
-            {
-                Response.Redirect("Register.aspx");
-            }
-            List<Employee> empList = populateEmployeeList(emp, conn, comm);
-            Session["CurrentEmployeeList"] = empList;
-            //FormsAuthentication.SetAuthCookie(RegisterUser.UserName, false /* createPersistentCookie */);
+			string redirectUrl = OleDBHelper.withConnection(conn =>
+			{
+				Employee emp = new Employee();
+				emp.EmpNum = RegisterUser.UserName;
+				try
+				{
+					// TODO I think this will work, but I'm not 100% sure.
+					emp.ID = OleDBHelper.query(
+						"update employeelist set registered=true, EmailAddress=?, UserPass=?"
+						+ "where EmployeeNum=?;"
+						+ "select @@identity"
+						, new string[] { RegisterUser.Email, RegisterUser.Password, RegisterUser.UserName }
+						, row => (int)row[0]
+						, conn
+					).First();
+				}
+				catch (System.Exception)
+				{
+					return "Register.aspx";
+				}
+				List<Employee> empList = populateEmployeeList(emp, conn);
+				Session["CurrentEmployeeList"] = empList;
+				//FormsAuthentication.SetAuthCookie(RegisterUser.UserName, false /* createPersistentCookie */);
 
-            string continueUrl = "./Login.aspx";
-            if (String.IsNullOrEmpty(continueUrl))
-            {
-                continueUrl = "~/";
-            }
-            Response.Redirect(continueUrl);
+				string continueUrl = "./Login.aspx";
+				if (String.IsNullOrEmpty(continueUrl))
+				{
+					continueUrl = "~/";
+				}
+				return continueUrl;
+			});
+			Response.Redirect(redirectUrl);
         }
-        private List<Employee> populateEmployeeList(Employee emp, OleDbConnection conn, OleDbCommand comm)
+        private List<Employee> populateEmployeeList(Employee emp, OleDbConnection conn)
         {
-            OleDbDataAdapter adapter = new OleDbDataAdapter();
-            DataSet set = new DataSet();            
-            try
-            {
-                conn.Open();
-                comm.CommandText = "select * from EmployeeList where EmployeeNum = " + emp.EmpNum;
-                comm.Connection = conn;
-                adapter.SelectCommand = comm;
-                adapter.Fill(set);
-            }
-            catch (System.Exception ex)
+			try
+			{
+				return OleDBHelper.query(
+					"select * from EmployeeList where EmployeeNum = " + emp.EmpNum
+					, new string[] { }
+					, row => new Employee(row)
+					, conn
+				).ToList();
+			}
+            catch (System.Exception)
             {
                 return null;
             }
-            if (set.Tables != null && set.Tables[0].Rows.Count > 0)
-            {
-                List<Employee> emps = new List<Employee>();
-                foreach (DataRow dr in set.Tables[0].Rows)
-                {
-                    Employee e = new Employee();
-                    e.ID = emp.ID;
-                    e.emailAddress = dr[5].ToString();
-                    e.EmpNum = dr[1].ToString();
-                    e.firstName = dr[3].ToString();
-                    e.jobTitle = dr[4].ToString();
-                    e.lastName = dr[2].ToString();
-                    e.registered = true;
-                    e.password = dr[6].ToString();
-                    emps.Add(e);
-                }
-                return emps;
-            }
-            return null;
         }
         protected void RegisterUser_CreatedUser(object sender, EventArgs e)
         {
-            OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
-            conn.Open();
-            string strLog = "update employeelist set registered=true, emailaddress='" + RegisterUser.Email + "', password='" + RegisterUser.Password;
-            strLog += " where employeenum=" + Request.Params["empNum"].ToString();
-            OleDbCommand comm = new OleDbCommand();
-            comm.CommandText = strLog;
-            comm.CommandType = System.Data.CommandType.Text;
-            comm.Connection = conn;
             try
-            {
-                comm.ExecuteNonQuery();
+			{
+				OleDBHelper.nonQuery(
+					"update employeelist set registered=true, emailaddress=?, password=?"
+					+ "where employeenum=?"
+					, new string[] { RegisterUser.Email, RegisterUser.Password, Request.Params["empNum"].ToString() }
+				);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
                 Response.Redirect("Register.aspx");
             }
