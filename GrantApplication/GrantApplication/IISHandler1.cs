@@ -58,7 +58,7 @@ namespace GrantApplication
 					switch ((String)context.Request.QueryString["q"])
 					{
 						case "listgrants":
-							IEnumerable<Grant> grants = dbQuery(
+							IEnumerable<Grant> grants = OleDBHelper.query(
 								 "SELECT GrantInfo.* FROM GrantInfo, EmployeeList"
 								+ " WHERE EmployeeList.ID = ?"
 								+ " AND EmployeeList.LastName = GrantInfo.GrantManagerLast"
@@ -87,8 +87,8 @@ namespace GrantApplication
 							string[] sqlkeys = new string[] { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.Status" };
 							string[] sqlvals = new string[] { query["grant"], query["employee"], status};
 							IEnumerable<string> sqlparams;
-							sqlquery = appendConditions(sqlquery, sqlkeys, sqlvals, out sqlparams);
-							IEnumerable<GrantMonth> gm = dbQuery(
+							sqlquery = OleDBHelper.appendConditions(sqlquery, sqlkeys, sqlvals, out sqlparams);
+							IEnumerable<GrantMonth> gm = OleDBHelper.query(
 								sqlquery,
 								sqlparams,
 								row => new GrantMonth(row)
@@ -99,7 +99,7 @@ namespace GrantApplication
 							viewrequest(context, id, query);
 							break;
 						case "listemployees":
-							IEnumerable<SafeEmployee> defaultemployees = dbQuery(
+							IEnumerable<SafeEmployee> defaultemployees = OleDBHelper.query(
 								"SELECT * FROM EmployeeList"
 								+ " WHERE DefaultSupervisor = " + id
 								, new string[] { }
@@ -147,17 +147,17 @@ namespace GrantApplication
 			{
 				string[] grants = grantstr.Split(',');
 				//List<Tuple<TimeEntry, string>> times = dbQuery(
-				IEnumerable<TimeEntry> times = dbQuery(
+				IEnumerable<TimeEntry> times = OleDBHelper.query(
 					//"SELECT TimeEntry.*, GrantInfo.GrantNumber FROM TimeEntry, GrantInfo, EmployeeList"
 					"SELECT TimeEntry.* FROM TimeEntry, GrantInfo, EmployeeList"
 					+ " WHERE TimeEntry.GrantID = GrantInfo.ID"
 					+ " AND TimeEntry.EmpID = EmployeeList.ID"
 					//+ " AND TimeEntry.SupervisorID = " + id
 					// the existing queries don't use it, plus it seems to be null a lot
-					//+ " AND GrantInfo.GrantNumber IN "+ sqlInArrayParams(grants)
+					//+ " AND GrantInfo.GrantNumber N "+ sqlInArrayParams(grants)
 					//+ " AND EmployeeList.EmployeeNum = ?"
 					+ " AND TimeEntry.EmpID = ?"
-					+ " AND TimeEntry.GrantID IN "+ sqlInArrayParams(grants)
+					+ " AND TimeEntry.GrantID IN "+ OleDBHelper.sqlInArrayParams(grants)
 					+ " AND TimeEntry.YearNumber = ?"
 					+ " AND TimeEntry.MonthNumber = ?"
 					+ " ORDER BY TimeEntry.GrantID, TimeEntry.DayNumber ASC"
@@ -202,42 +202,45 @@ namespace GrantApplication
 			{
 				string reason = query["reason"];
 				reason = reason != null ? reason : "No reason given.";
-				Employee user = dbQuery("SELECT * FROM EmployeeList WHERE ID = " + id, new string[] { }, row => new Employee(row)).First();
-				List<Employee> employees = dbQuery("SELECT * FROM EmployeeList WHERE ID = ?", new string[] { employee }, row => new Employee(row)).ToList();
-				if (employees.Count == 0)
+				Tuple<bool, object> result = OleDBHelper.withConnection(conn =>
 				{
-					writeResult(context, false, "No such employee");
-					return;
-				}
-				string[] grantstrs = grant.Split(',');
-				string grantquery = sqlInArrayParams(grantstrs);
-				//List<Grant> grants = dbQuery("SELECT * FROM GrantInfo WHERE GrantNumber IN " + grantquery, grantstrs, Grant.fromRow);
-				List<Grant> grants = dbQuery("SELECT * FROM GrantInfo WHERE ID IN " + grantquery, grantstrs, Grant.fromRow).ToList();
-				if (grants.Count == 0)
-				{
-					writeResult(context, false, "No such grant(s)");
-					return;
-				}
-				if (GrantApplication._Default.approveOrDisapproveStateless(approve.Value, reason, employees[0], user, grants, month.Value, year.Value))
-				{
-					writeResult(context, true, "Sent email to " + employees[0].firstName + " " + employees[0].lastName);
-				}
-				else
-				{
-					writeResult(context, false, "Error sending email");
-				}
+					Employee user = OleDBHelper.query(
+						"SELECT * FROM EmployeeList WHERE ID = " + id, new string[] { }, row => new Employee(row), conn
+					).First();
+					List<Employee> employees = OleDBHelper.query(
+						"SELECT * FROM EmployeeList WHERE ID = ?", new string[] { employee }, row => new Employee(row), conn
+					).ToList();
+					if (employees.Count == 0)
+					{
+						return new Tuple<bool, object>(false, "No such employee");
+					}
+					string[] grantstrs = grant.Split(',');
+					string grantquery = OleDBHelper.sqlInArrayParams(grantstrs);
+					List<Grant> grants = OleDBHelper.query(
+						"SELECT * FROM GrantInfo WHERE ID IN " + grantquery, grantstrs, Grant.fromRow, conn
+					).ToList();
+					if (grants.Count == 0)
+					{
+						return new Tuple<bool, object>(false, "No such grant(s)");
+					}
+					if (GrantApplication._Default.approveOrDisapproveStateless(approve.Value, reason, employees[0], user, grants, month.Value, year.Value))
+					{
+						return new Tuple<bool, object>(true, "Sent email to " + employees[0].firstName + " " + employees[0].lastName);
+					}
+					else
+					{
+						return new Tuple<bool, object>(false, "Error sending email");
+					}
+				});
+				writeResult(context, result.Item1, result.Item2);
 			}
 		}
 
-		private string sqlInArrayParams(object[] inarray)
-		{
-			return inarray.Skip(1).Aggregate("( ?", (accum, g) => accum + ", ?") + " )";
-		}
 
 		public void doLogin(HttpContext context, String empId, String pass)
 		{
 			empId = (empId != null) ? empId : "";
-			IEnumerable<Employee> emps = dbQuery<Employee>(
+			IEnumerable<Employee> emps = OleDBHelper.query<Employee>(
 				"SELECT * FROM EmployeeList WHERE registered = true AND EmployeeNum = ?",
 				new String[] { empId },
 				row => new Employee(row)
@@ -268,44 +271,10 @@ namespace GrantApplication
 #endif
 
 		}
-		
-		// make a parameterized query, map the returned DataRows through a provided function, and return the result
-		static private IEnumerable<T> dbQuery<T>(String query, IEnumerable<string> parameters, Func<DataRow, T> selector)
-		{
-			OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
-			DbDataAdapter adapter = new OleDbDataAdapter();
-			DbCommand cmd = new OleDbCommand(query, conn);
-			parameters.ForEach(val =>
-			{
-				DbParameter p = new OleDbParameter(null, val);
-				cmd.Parameters.Add(p);
-			});
-			DataSet set = new DataSet();
-			adapter.SelectCommand = cmd;
 
-			conn.Open();
-			adapter.Fill(set);
-			conn.Close();
-			return set.Tables[0].Rows.Flatten<DataRow>().Select(selector);
-		}
-		
-		// add " AND sqlkey[i] = ?" type conditions to a SELECT query, for the non-null entries in sqlvals
-		// returns the new query string directly, and the non-null values in sqlparams
-		static private String appendConditions(string sqlquery, string[] sqlkeys, string[] sqlvals, out IEnumerable<string> sqlparams)
-		{
-			IEnumerable<Tuple<string, string>> sqlkv = sqlkeys
-				.Zip(sqlvals, (key, val) => new Tuple<string, string>(key, val))
-				.Where(kv => kv.Item2 != null);
-			sqlkv.ForEach(kv => sqlquery += " AND " + kv.Item1 + " = ?");
-			sqlparams = sqlkv.Select(kv => kv.Item2);
-			return sqlquery;
-		}
-		//static private String makeParams(List<String> keys) {
-		//	if (keys.Count == 0)
-		//		return "";
-		//	string init = "WHERE " + keys[0] + " = ?";
-		//	return keys.Skip(1).Aggregate(init,  (acc, key) => acc + " AND " + key + " = ?");
-		//}
+
+
+
 		class SafeEmployee
 		{
 			public string firstname;
