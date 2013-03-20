@@ -127,7 +127,7 @@ namespace GrantApplication.Account
                     this.pnlSwitchUser.Visible = true;
                     Session["kids"] = kids;
                     Session["LoggedIn"] = true;
-                    if (emps[0].EmpNum.Contains("14805010"))  //It's Marie
+                    if (emps[0].EmpNum.Contains(Globals.MarieEmpNum))  //It's Marie
                     {
                         pnlDowner.Visible = true;                       
                          Menu m = (Menu)this.Master.FindControl("NavigationMenu");
