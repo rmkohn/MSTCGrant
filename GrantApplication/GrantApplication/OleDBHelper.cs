@@ -78,7 +78,7 @@ namespace GrantApplication
 		// fill out (?)s for an IN (?, ...) statement on the provided array
 		static public string sqlInArrayParams(object[] inarray)
 		{
-			return inarray.Skip(1).Aggregate("( ?", (accum, g) => accum + ", ?") + " )";
+			return "(" + string.Join(", ", inarray.Select(item => "?")) + ")";
 		}
 	}
 }

@@ -42,7 +42,7 @@ namespace GrantApplication
 				// but for now, this is just for testing
 				context.Session["ID"] = emailkey;
 			}
-			else if (((String)query["q"]) == "login")
+			if (((String)query["q"]) == "login")
 			{
 				doLogin(context, query["id"], query["pass"]);
 			}
@@ -114,12 +114,12 @@ namespace GrantApplication
 							sendApproval(context, query, id);
 							break;
 						case "debug":
-							List<KeyValuePair<String, String>> kvs = new List<KeyValuePair<String, String>>();
+							Dictionary<string, object> sesh = new Dictionary<string, object>();
 							foreach (String key in context.Session.Keys)
 							{
-								kvs.Add(new KeyValuePair<string, string>(key, context.Session[key].ToString()));
+								sesh.Add(key, context.Session[key]);
 							}
-							writeResult(context, true, kvs);
+							writeResult(context, true, sesh);
 							break;
 						case "logout":
 							context.Session.Abandon();
@@ -132,49 +132,91 @@ namespace GrantApplication
 				}
 			}
 		}
+		private Dictionary<string, IEnumerable<double>> getrequest(int? id, string[] grants, string empid, string year, string month)
+		{
+			IEnumerable<TimeEntry> times = OleDBHelper.query(
+				"SELECT TimeEntry.* FROM TimeEntry"
+				//"SELECT TimeEntry.* FROM TimeEntry, GrantInfo, EmployeeList"
+				//+ " WHERE TimeEntry.GrantID = GrantInfo.ID"
+				//+ " AND TimeEntry.EmpID = EmployeeList.ID"
+				//+ " AND TimeEntry.SupervisorID = " + id
+				// the existing queries don't use it, plus it seems to be null a lot
+				+ " WHERE TimeEntry.GrantID IN " + OleDBHelper.sqlInArrayParams(grants)
+				+ " AND TimeEntry.EmpID = ?"
+				+ " AND TimeEntry.YearNumber = ?"
+				+ " AND TimeEntry.MonthNumber = ?"
+				+ " ORDER BY TimeEntry.GrantID, TimeEntry.DayNumber ASC"
+				, grants.Concat(new string[] { empid, year, month })
+				, TimeEntry.fromRow
+			);
+			return groupTimes(times);
+		}
+
+		private Dictionary<string, IEnumerable<double>> requestFromWorkMonth(int? id, string[] grants, string WorkMonthID)
+		{
+			IEnumerable<TimeEntry> times = OleDBHelper.query(
+				"SELECT TimeEntry.* FROM TimeEntry, WorkMonth"
+				+ " WHERE TimeEntry.EmpId = WorkMonth.EmpId"
+				+ " AND WorkMonth.ID = ?"
+				+ " AND (TimeEntry.GrantID = WorkMonth.GrantID"
+				// special case, sql doesn't like WHERE foo IN ()
+				+ (grants.Length == 0 ? "" : " OR TimeEntry.GrantID IN " + OleDBHelper.sqlInArrayParams(grants))
+				+ ") AND TimeEntry.YearNumber = WorkMonth.WorkYear"
+				+ " AND TimeEntry.MonthNumber = WorkMonth.WorkingMonth"
+				+ " ORDER BY TimeEntry.GrantID, TimeEntry.DayNumber ASC"
+				, new string[] { WorkMonthID }.Concat(grants)
+				, TimeEntry.fromRow
+			);
+			return groupTimes(times);
+		}
+
+		private Dictionary<string, IEnumerable<double>> groupTimes(IEnumerable<TimeEntry> times)
+		{
+			return  times.GroupBy(time => time.grantID).Where(group=>group.Count() > 0).ToDictionary(
+				group => group.Key.ToString(),
+				group => {
+					double[] days = new double[_Default.totalDaysInMonth[group.First().monthNumber]];
+					group.ForEach(entry => days[entry.dayNumber-1] = entry.grantHours); // days are 1-indexed, months are 0-indexed?
+					return days.AsEnumerable();
+				}
+				//group => group.Select(time => time.grantHours)
+			);
+		}
 
 		private void viewrequest(HttpContext context, int? id, NameValueCollection query)
 		{
-			string grantstr = query["grant"];
+			string grantstr = query["grant"] == null ? "" : query["grant"];
 			string empid = query["employee"];
 			string year = query["year"];
 			string month = query["month"];
-			if (grantstr == null || empid == null || year == null || month == null)
+			string workmonth = query["request"];
+			bool extras = query["withextras"] == "true";
+			if (extras)
 			{
+				grantstr += "," + Globals.GrantID_Leave + "," + Globals.GrantID_NonGrant;
+			}
+			string[] grants = grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).ToArray();
+			Dictionary<string, IEnumerable<double>> groupTimes;
+			if (workmonth != null)
+			{
+				groupTimes = requestFromWorkMonth(id, grants, workmonth);
+			}
+			else if (grants.Length > 0 && empid != null && year != null && month != null)
+			{
+				groupTimes = getrequest(id, grants, empid, year, month);
+			}
+			else {
 				writeResult(context, false, "Missing employee id or grant number or date");
+				return;
 			}
-			else
+			if (extras)
 			{
-				string[] grants = grantstr.Split(',');
-				//List<Tuple<TimeEntry, string>> times = dbQuery(
-				IEnumerable<TimeEntry> times = OleDBHelper.query(
-					//"SELECT TimeEntry.*, GrantInfo.GrantNumber FROM TimeEntry, GrantInfo, EmployeeList"
-					"SELECT TimeEntry.* FROM TimeEntry, GrantInfo, EmployeeList"
-					+ " WHERE TimeEntry.GrantID = GrantInfo.ID"
-					+ " AND TimeEntry.EmpID = EmployeeList.ID"
-					//+ " AND TimeEntry.SupervisorID = " + id
-					// the existing queries don't use it, plus it seems to be null a lot
-					//+ " AND GrantInfo.GrantNumber N "+ sqlInArrayParams(grants)
-					//+ " AND EmployeeList.EmployeeNum = ?"
-					+ " AND TimeEntry.EmpID = ?"
-					+ " AND TimeEntry.GrantID IN "+ OleDBHelper.sqlInArrayParams(grants)
-					+ " AND TimeEntry.YearNumber = ?"
-					+ " AND TimeEntry.MonthNumber = ?"
-					+ " ORDER BY TimeEntry.GrantID, TimeEntry.DayNumber ASC"
-					, grants.Concat(new string[] {empid, year, month})
-					//, row => new Tuple<TimeEntry, string>(TimeEntry.fromRow(row), (string)row[8])
-					, TimeEntry.fromRow
-				);
-				//Dictionary<string, double[]> groupTimes = times.GroupBy(time => time.Item2).ToDictionary(
-				//	group => group.Key.ToString(),
-				//	group => group.Select(time => time.Item1.grantHours).ToArray()
-				//);
-				Dictionary<string, IEnumerable<double>> groupTimes = times.GroupBy(time => time.grantID).ToDictionary(
-					group => group.Key.ToString(),
-					group => group.Select(time => time.grantHours)
-				);
-				writeResult(context, true, groupTimes);
+				groupTimes["leave"] = groupTimes[Globals.GrantID_Leave.ToString()];
+				groupTimes.Remove(Globals.GrantID_Leave.ToString());
+				groupTimes["non-grant"] = groupTimes[Globals.GrantID_NonGrant.ToString()];
+				groupTimes.Remove(Globals.GrantID_NonGrant.ToString());
 			}
+			writeResult(context, true, groupTimes);
 		}
 
 		private void sendApproval(HttpContext context, NameValueCollection query, int? id)
