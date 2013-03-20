@@ -159,7 +159,7 @@ namespace GrantApplication
 			this.defaultSupervisor = dr[9].ToString();
 			if (this.defaultSupervisor == string.Empty || this.defaultSupervisor == "0")
 			{
-				this.defaultSupervisor = "699"; //Marie Schmieder's emp ID.
+				this.defaultSupervisor = Globals.defaultSupervisorID; //Marie Schmieder's emp ID.
 			}
 		}
 		private String HashPassword(string pass)

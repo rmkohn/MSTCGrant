@@ -720,7 +720,7 @@ namespace GrantApplication
             int month = System.Convert.ToInt32(HttpContext.Current.Session["month"]);            
             int year = System.Convert.ToInt32(HttpContext.Current.Session["Year"]);
             List<Grant> selGrants = (List<Grant>)HttpContext.Current.Session["SelectedGrants"];
-            int grantID = selGrants.Where(g => g.ID != 52 && g.ID != 53).SingleOrDefault().ID;
+            int grantID = selGrants.Where(g => g.ID != Globals.GrantID_Leave && g.ID != Globals.GrantID_NonGrant).SingleOrDefault().ID;
             List<TimeEntry> teS = GetEmployeeTimeEntriesForApproval(emps[0], month, year, grantID);
             return teS.ToArray();
         }
@@ -1464,7 +1464,7 @@ namespace GrantApplication
             sb.Append(email);
             email = "To see the grant time entries, please browse to: <p />";
             sb.Append(email);
-            email = "http://www.mid-state.net/GrantApplication/Default.aspx?approval=true&ID=" + sup.ID.ToString() + "&Employee=" + emp.ID.ToString() + "&month=" + (dt.Month - 1).ToString() + "&Year=" + dt.Year.ToString() + "&GrantID=" + grantID.ToString();
+            email = Globals.ApplicationRoot + "Default.aspx?approval=true&ID=" + sup.ID.ToString() + "&Employee=" + emp.ID.ToString() + "&month=" + (dt.Month - 1).ToString() + "&Year=" + dt.Year.ToString() + "&GrantID=" + grantID.ToString();
             sb.Append(email);
             sb.Append("<p /><h5>Thanks, the Grant Administrator</h5></body></html>");
 
@@ -1647,7 +1647,7 @@ namespace GrantApplication
             sb.Append("<html><body><strong>Hi " + manager.firstName + "</strong><p />");
             sb.Append(emp.firstName + " " + emp.lastName + " has been approved for the " + g.grantTitle + " grant.<br />");
             sb.Append("To see the grant entries for " + emp.firstName + " please click on the following link:<br /><a href=");
-            sb.Append("http://www.mid-state.net/GrantApplication/Default.aspx?Review=true&ID=" + manager.ID.ToString() + "&Employee=" + emp.ID.ToString());
+            sb.Append(Globals.ApplicationRoot + "Default.aspx?Review=true&ID=" + manager.ID.ToString() + "&Employee=" + emp.ID.ToString());
             sb.Append( "&month=" + month.ToString() + "&Year=" + year.ToString() + "&GrantID=" +g.ID.ToString());
             sb.Append(">Review Time Enties</a><p />Thank you,<br />");
             sb.Append("<strong>The grant allocations team.</strong></body></html>");

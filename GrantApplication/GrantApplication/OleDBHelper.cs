@@ -49,21 +49,16 @@ namespace GrantApplication
 			DataSet set = new DataSet();
 			adapter.SelectCommand = cmd;
 
-			conn.Open();
 			adapter.Fill(set);
-			conn.Close();
 			return set.Tables[0].Rows.Flatten<DataRow>().Select(selector);
 		}
 
 		static public int nonQuery(String statement, IEnumerable<string> parameters, OleDbConnection conn)
 		{
-			DbDataAdapter adapter = new OleDbDataAdapter();
 			DbCommand cmd = new OleDbCommand(statement, conn);
 			parameters.ForEach(val =>
 				cmd.Parameters.Add(new OleDbParameter(null, val))
 			);
-			DataSet set = new DataSet();
-			adapter.SelectCommand = cmd;
 
 			return cmd.ExecuteNonQuery();
 		}
