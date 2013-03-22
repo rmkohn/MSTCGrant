@@ -6,6 +6,7 @@ using System.Data.Common;
 using System.Data.OleDb;
 using System.Linq;
 using System.Web;
+using System.Web.Script.Serialization;
 
 namespace GrantApplication
 {
@@ -37,9 +38,13 @@ namespace GrantApplication
 			return withConnection(conn => nonQuery(statement, parameters, conn));
 		}
 
+		//static public IEnumerable<Dictionary<string,T>> multiQuery<T>(String querystr, IEnumerable<string> parameters,
+		//	Dictionary<string, Func<DataRow, T>> selectors)
+		//{
+		//	return withConnection(conn => multiQuery(querystr, parameters, selectors, conn));
+		//}
 
-		// make a parameterized query, map the returned DataRows through a provided function, and return the result
-		static public IEnumerable<T> query<T>(String query, IEnumerable<string> parameters, Func<DataRow, T> selector, OleDbConnection conn)
+		static public DataSet fillDataSet(String query, IEnumerable<string> parameters, OleDbConnection conn)
 		{
 			DbDataAdapter adapter = new OleDbDataAdapter();
 			DbCommand cmd = new OleDbCommand(query, conn);
@@ -50,8 +55,33 @@ namespace GrantApplication
 			adapter.SelectCommand = cmd;
 
 			adapter.Fill(set);
+			return set;
+		}
+
+
+		// make a parameterized query, map the returned DataRows through a provided function, and return the result
+		static public IEnumerable<T> query<T>(String query, IEnumerable<string> parameters, Func<DataRow, T> selector, OleDbConnection conn)
+		{
+			DataSet set = fillDataSet(query, parameters, conn);
 			return set.Tables[0].Rows.Flatten<DataRow>().Select(selector);
 		}
+
+		// Results don't get turned into separate tables, so this is worthless.
+		//static public IEnumerable<Dictionary<string, T>> multiQuery<T>(String query, IEnumerable<string> parameters,
+		//	Dictionary<string, Func<DataRow, T>> selectors, OleDbConnection conn)
+		//{
+
+		//	DataSet set = fillDataSet(query, parameters, conn);
+		//	List<Dictionary<string, T>> result = new List<Dictionary<string, T>>(set.Tables[0].Rows.Count);
+		//	for (int i = 0; i < set.Tables[0].Rows.Count; i++)
+		//	{
+		//		result.Add(selectors.ToDictionary(
+		//			kv => kv.Key,
+		//			kv =>kv.Value(set.Tables[kv.Key].Rows[i])
+		//		));
+		//	}
+		//	return result;
+		//}
 
 		static public int nonQuery(String statement, IEnumerable<string> parameters, OleDbConnection conn)
 		{

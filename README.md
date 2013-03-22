@@ -11,6 +11,7 @@ The commands available so far are
 - [`approve`](#approve)
 - [`logout`](#logout)
 - [`debug`](#debug)
+- [`email`](#email) `id`
 
 ----
 
@@ -74,3 +75,9 @@ But none of that actually exists yet, so it just logs you in as whomever's ID yo
 > No arguments.
 
 > Dump all the information the server is holding about your current session.  At present this is just the logged-in user's ID.
+
+<div id="email"/>
+#### email
+> Arguments: id
+
+> This should be called with the id provided in a grant approval request email.  `message` in the server response holds a json object with `month`, `year`, `supervisor` (itself a json object with entries for `firstname` `lastname` and `id`), `employee` (ditto), `status` (as per `listgrants`), `grant`, and `hours` (as per `viewrequest`)
