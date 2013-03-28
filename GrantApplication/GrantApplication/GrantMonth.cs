@@ -115,6 +115,11 @@ namespace GrantApplication
             supervisorID = (int)dr[5];
             curStatus = (int)dr[6];
         }
+
+		public static GrantMonth fromRow(DataRow dr)
+		{
+			return new GrantMonth(dr);
+		}
        
     }
 }

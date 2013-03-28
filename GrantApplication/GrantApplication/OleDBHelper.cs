@@ -28,9 +28,9 @@ namespace GrantApplication
 			return ret;
 		}
 
-		static public IEnumerable<T> query<T>(String querystr, IEnumerable<string> parameters, Func<DataRow, T> selector)
+		static public IEnumerable<T> query<T>(string querystr, Func<DataRow, T> selector, params string[] parameters)
 		{
-			return withConnection(conn => query(querystr, parameters, selector, conn));
+			return withConnection(conn => query(conn, querystr, selector, parameters));
 		}
 
 		static public int nonQuery(String statement, IEnumerable<string> parameters)
@@ -38,13 +38,7 @@ namespace GrantApplication
 			return withConnection(conn => nonQuery(statement, parameters, conn));
 		}
 
-		//static public IEnumerable<Dictionary<string,T>> multiQuery<T>(String querystr, IEnumerable<string> parameters,
-		//	Dictionary<string, Func<DataRow, T>> selectors)
-		//{
-		//	return withConnection(conn => multiQuery(querystr, parameters, selectors, conn));
-		//}
-
-		static public DataSet fillDataSet(String query, IEnumerable<string> parameters, OleDbConnection conn)
+		static public DataSet fillDataSet(OleDbConnection conn, string query, params string[] parameters)
 		{
 			DbDataAdapter adapter = new OleDbDataAdapter();
 			DbCommand cmd = new OleDbCommand(query, conn);
@@ -60,28 +54,11 @@ namespace GrantApplication
 
 
 		// make a parameterized query, map the returned DataRows through a provided function, and return the result
-		static public IEnumerable<T> query<T>(String query, IEnumerable<string> parameters, Func<DataRow, T> selector, OleDbConnection conn)
+		static public IEnumerable<T> query<T>(OleDbConnection conn, string query, Func<DataRow, T> selector, params string[] parameters)
 		{
-			DataSet set = fillDataSet(query, parameters, conn);
+			DataSet set = fillDataSet(conn, query, parameters);
 			return set.Tables[0].Rows.Flatten<DataRow>().Select(selector);
 		}
-
-		// Results don't get turned into separate tables, so this is worthless.
-		//static public IEnumerable<Dictionary<string, T>> multiQuery<T>(String query, IEnumerable<string> parameters,
-		//	Dictionary<string, Func<DataRow, T>> selectors, OleDbConnection conn)
-		//{
-
-		//	DataSet set = fillDataSet(query, parameters, conn);
-		//	List<Dictionary<string, T>> result = new List<Dictionary<string, T>>(set.Tables[0].Rows.Count);
-		//	for (int i = 0; i < set.Tables[0].Rows.Count; i++)
-		//	{
-		//		result.Add(selectors.ToDictionary(
-		//			kv => kv.Key,
-		//			kv =>kv.Value(set.Tables[kv.Key].Rows[i])
-		//		));
-		//	}
-		//	return result;
-		//}
 
 		static public int nonQuery(String statement, IEnumerable<string> parameters, OleDbConnection conn)
 		{

@@ -23,6 +23,10 @@ namespace GrantApplication
 		/// </summary>
 		#region IHttpHandler Members
 
+
+		static string[] extragrants = new string[] { Globals.GrantID_Leave.ToString(), Globals.GrantID_NonGrant.ToString() };
+		static string[] noextragrants = new string[] { };
+
 		public bool IsReusable
 		{
 			// Return false in case your Managed Handler cannot be reused for another request.
@@ -42,7 +46,8 @@ namespace GrantApplication
 			}
 			else if (command == "email")
 			{
-				doEmailGrantId(context, query["id"]);
+
+				doEmailGrantId(context, query);
 			}
 			else
 			{
@@ -56,57 +61,23 @@ namespace GrantApplication
 					switch (command)
 					{
 						case "listgrants":
-							IEnumerable<Grant> grants = OleDBHelper.query(
-								 "SELECT GrantInfo.* FROM GrantInfo, EmployeeList"
-								+ " WHERE EmployeeList.ID = ?"
-								+ " AND EmployeeList.LastName = GrantInfo.GrantManagerLast"
-								+ " AND EmployeeList.FirstName = GrantInfo.GrantManagerFirst"
-								, new String[] { id.ToString() }
-								, Grant.fromRow
-							);
-							writeResult(context, true, grants);
+							listgrants(context, id, query);
 							break;
 						case "listrequests":
-							string status = null;
-							try
-							{
-								status = ((int)Enum.Parse(typeof(GrantMonth.status), query["status"], true)).ToString();
-							}
-							catch (ArgumentNullException) { }
-							catch (ArgumentException)
-							{
-								writeResult(context, false, query["status"] + " is not a valid status");
-								return;
-							}
-							string sqlquery = "SELECT WorkMonth.* FROM WorkMonth, GrantInfo WHERE GrantInfo.ID = WorkMonth.GrantID"
-								//string sqlquery = "SELECT WorkMonth.* FROM WorkMonth"
-											+ " AND SupervisorID = " + id;
-							//string[] sqlkeys = new string[] { "GrantInfo.GrantNumber", "EmployeeList.EmployeeNum", "WorkMonth.Status" };
-							string[] sqlkeys = new string[] { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.Status" };
-							string[] sqlvals = new string[] { query["grant"], query["employee"], status };
-							IEnumerable<string> sqlparams;
-							sqlquery = OleDBHelper.appendConditions(sqlquery, sqlkeys, sqlvals, out sqlparams);
-							IEnumerable<GrantMonth> gm = OleDBHelper.query(
-								sqlquery,
-								sqlparams,
-								row => new GrantMonth(row)
-							);
-							writeResult(context, true, gm);
+							listrequests(context, id, query);
 							break;
 						case "viewrequest":
 							viewrequest(context, id, query);
 							break;
 						case "listemployees":
-							IEnumerable<SafeEmployee> defaultemployees = OleDBHelper.query(
-								"SELECT * FROM EmployeeList"
-								+ " WHERE DefaultSupervisor = " + id
-								, new string[] { }
-								, SafeEmployee.fromRow
-							);
-							writeResult(context, true, defaultemployees);
+							listemployees(context, id, query);
 							break;
 						case "approve":
-							sendApproval(context, query, id);
+							sendApproval(context, id, query);
+							break;
+						case "logout":
+							context.Session.Abandon();
+							writeResult(context, true, "Logged out successfully");
 							break;
 						case "debug":
 							Dictionary<string, object> sesh = new Dictionary<string, object>();
@@ -116,10 +87,6 @@ namespace GrantApplication
 							}
 							writeResult(context, true, sesh);
 							break;
-						case "logout":
-							context.Session.Abandon();
-							writeResult(context, true, "Logged out successfully");
-							break;
 						default:
 							writeResult(context, false, "Unrecognized request");
 							break;
@@ -128,91 +95,191 @@ namespace GrantApplication
 			}
 		}
 
-		private void doEmailGrantId(HttpContext context, string grantid)
+		private void listemployees(HttpContext context, int? id, NameValueCollection query)
 		{
-			string[] extragrants = new string[] { Globals.GrantID_Leave.ToString(), Globals.GrantID_NonGrant.ToString() };
-			if (grantid == null)
+			IEnumerable<SafeEmployee> defaultemployees = OleDBHelper.query(
+				"SELECT * FROM EmployeeList"
+				+ " WHERE DefaultSupervisor = " + id
+				, SafeEmployee.fromRow
+			);
+			writeResult(context, true, defaultemployees);
+		}
+
+		private void listgrants(HttpContext context, int? id, NameValueCollection query)
+		{
+			IEnumerable<Grant> grants = OleDBHelper.query(
+				 "SELECT GrantInfo.* FROM GrantInfo, EmployeeList"
+				+ " WHERE EmployeeList.ID = ?"
+				+ " AND EmployeeList.LastName = GrantInfo.GrantManagerLast"
+				+ " AND EmployeeList.FirstName = GrantInfo.GrantManagerFirst"
+				, Grant.fromRow
+				, id.ToString()
+			);
+			writeResult(context, true, grants);
+		}
+
+		private void listrequests(HttpContext context, int? id, NameValueCollection query)
+		{
+			string status = null;
+			try
+			{
+				status = ((int)Enum.Parse(typeof(GrantMonth.status), query["status"], true)).ToString();
+			}
+			catch (ArgumentNullException) { }
+			catch (ArgumentException)
+			{
+				writeResult(context, false, query["status"] + " is not a valid status");
+				return;
+			}
+			string sqlquery = "SELECT WorkMonth.* FROM WorkMonth, GrantInfo WHERE GrantInfo.ID = WorkMonth.GrantID"
+				//string sqlquery = "SELECT WorkMonth.* FROM WorkMonth"
+							+ " AND SupervisorID = " + id;
+			//string[] sqlkeys = new string[] { "GrantInfo.GrantNumber", "EmployeeList.EmployeeNum", "WorkMonth.Status" };
+			string[] sqlkeys = new string[] { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.Status" };
+			string[] sqlvals = new string[] { query["grant"], query["employee"], status };
+			IEnumerable<string> sqlparams;
+			sqlquery = OleDBHelper.appendConditions(sqlquery, sqlkeys, sqlvals, out sqlparams);
+			IEnumerable<GrantMonth> gm = OleDBHelper.query(
+				sqlquery,
+				GrantMonth.fromRow,
+				sqlparams.ToArray()
+			);
+			writeResult(context, true, gm);
+		}
+
+		private void doEmailGrantId(HttpContext context, NameValueCollection query)
+		{
+			IEnumerable<GrantMonth> months = getWorkMonthsFromQuery(query);
+			if (months == null || months.Count() > 1)
 			{
 				writeResult(context, false, "Missing grant id from email");
+				return;
+			}
+			GrantMonth month = months.SingleOrDefault();
+			if (month == null)
+			{
+				writeResult(context, false, "No such grant");
 			}
 			else
 			{
-				Dictionary<string, IEnumerable<double>> times = renameGrantExtras(requestFromWorkMonth(0, extragrants, grantid));
-				Dictionary<string, object> result = new Dictionary<string, object>();
-				result.Add("hours", times);
-				GrantMonth month = OleDBHelper.query(
-					"SELECT * FROM WorkMonth WHERE ID = ?",
-					new string[] { grantid },
-					row => new GrantMonth(row)
+				Dictionary<string, IEnumerable<double>> times = renameGrantExtras(requestFromWorkMonth(months, extragrants));
+				IEnumerable<SafeEmployee> emps = OleDBHelper.query(
+					"SELECT * FROM EmployeeList WHERE ID IN (" + month.supervisorID + ", " + month.EmpID + ")",
+					SafeEmployee.fromRow
+				);
+				Grant grant = OleDBHelper.query(
+					"SELECT * FROM GrantInfo WHERE ID = " + month.grantID,
+					Grant.fromRow
 				).SingleOrDefault();
-				if (month == null)
+				SafeEmployee employee = emps.Where(e => e.id == month.EmpID.ToString()).SingleOrDefault();
+				SafeEmployee supervisor = emps.Where(e => e.id == month.supervisorID.ToString()).SingleOrDefault();
+				context.Session["ID"] = month.supervisorID;
+
+				var result = new
 				{
-					writeResult(context, false, "No such grant");
-				}
-				else
-				{
-					IEnumerable<SafeEmployee> emps = OleDBHelper.query(
-						"SELECT * FROM EmployeeList WHERE ID IN (" + month.supervisorID + ", " + month.EmpID + ")",
-						new string[] { },
-						SafeEmployee.fromRow
-					);
-					Grant grant = OleDBHelper.query(
-						"SELECT * FROM GrantInfo WHERE ID = " + month.grantID,
-						new string[] { },
-						Grant.fromRow
-					).SingleOrDefault();
-					SafeEmployee employee = emps.Where(e => e.id == month.EmpID.ToString()).SingleOrDefault();
-					SafeEmployee supervisor = emps.Where(e => e.id == month.supervisorID.ToString()).SingleOrDefault();
-					context.Session["ID"] = month.supervisorID;
-					result.Add("month", month.workMonth);
-					result.Add("year", month.workYear);
-					result.Add("status", month.curStatus);
-					result.Add("supervisor", supervisor);
-					result.Add("employee", employee);
-					result.Add("grant", grant);
-					writeResult(context, true, result);
-				}
+					hours = times,
+					month = month.workMonth,
+					year  = month.workYear,
+					status = month.curStatus,
+					supervisor = supervisor,
+					employee = employee,
+					grant = grant
+				};
+				writeResult(context, true, result);
 			}
 		}
-		private Dictionary<string, IEnumerable<double>> getrequest(int? id, string[] grants, string empid, string year, string month)
+
+		// return a GrantMonth object from enough details to specify a set of WorkMonth entries for a single month and employee
+		private IEnumerable<GrantMonth> getWorkMonthIDs(string[] grants, string empid, string year, string month)
 		{
-			IEnumerable<TimeEntry> times = OleDBHelper.query(
-				"SELECT TimeEntry.* FROM TimeEntry"
-				//"SELECT TimeEntry.* FROM TimeEntry, GrantInfo, EmployeeList"
-				//+ " WHERE TimeEntry.GrantID = GrantInfo.ID"
-				//+ " AND TimeEntry.EmpID = EmployeeList.ID"
-				//+ " AND TimeEntry.SupervisorID = " + id
-				// the existing queries don't use it, plus it seems to be null a lot
-				+ " WHERE TimeEntry.GrantID IN " + OleDBHelper.sqlInArrayParams(grants)
-				+ " AND TimeEntry.EmpID = ?"
-				+ " AND TimeEntry.YearNumber = ?"
-				+ " AND TimeEntry.MonthNumber = ?"
-				+ " ORDER BY TimeEntry.GrantID, TimeEntry.DayNumber ASC"
-				, grants.Concat(new string[] { empid, year, month })
-				, TimeEntry.fromRow
+			IEnumerable<GrantMonth> grantmonths = OleDBHelper.query(
+				"SELECT * FROM WorkMonth"
+				+ " WHERE GrantID IN " + OleDBHelper.sqlInArrayParams(grants)
+				+ " AND EmpID = ?"
+				+ " AND WorkYear= ?"
+				+ " AND WorkingMonth = ?"
+				+ " ORDER BY GrantID"
+				, GrantMonth.fromRow
+				, grants.Concat(new string[] { empid, year, month }).ToArray()
 			);
-			return groupTimes(times, grants);
+			return grantmonths;
 		}
 
-		private Dictionary<string, IEnumerable<double>> requestFromWorkMonth(int? id, string[] grants, string WorkMonthID)
+		// return a GrantMonth object from a WorkMonth ID
+		private IEnumerable<GrantMonth> getWorkMonthIDs(string[] workmonths)
+		{
+			return OleDBHelper.query(
+					"SELECT * FROM WorkMonth WHERE ID IN (" + OleDBHelper.sqlInArrayParams(workmonths) + ")"
+					, GrantMonth.fromRow
+					, workmonths
+				);
+		}
+
+		// get WorkMonths the lazy way
+		// this should be the only method to handle both ways of specifying a particular month, so that we don't
+		// have to have requestFromDate() etc.  The downside is an extra database request.
+		// Note that grants will be sorted, not returned in input order, and leave+nongrant time should not be dealt with here
+		// rather, they should be passed to requestFromWorkMonth
+		private IEnumerable<GrantMonth> getWorkMonthsFromQuery(NameValueCollection query)
+		{
+			string grantstr = query["grant"];
+			string empid = query["employee"];
+			string year = query["year"];
+			string month = query["month"];
+			string workmonthstr = query["id"];
+			try
+			{
+				if (workmonthstr != null)
+				{
+					string[] workmonths = workmonthstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).OrderBy(str => str).ToArray();
+					return getWorkMonthIDs(workmonths);
+				}
+				else if (grantstr != null && empid != null && year != null && month != null)
+				{
+					string[] grants = grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).OrderBy(str => str).ToArray();
+					return getWorkMonthIDs(grants, empid, year, month);
+				}
+			}
+			catch (Exception) { }
+			return null;
+		}
+
+		// return a dict of daily time entries from supplied work month IDs and additional grant ids (for non-grant/leave time)
+		private Dictionary<string, IEnumerable<double>> requestFromWorkMonth(string[] WorkMonthIDs, string[] grants, int defaultMonthLength)
 		{
 			IEnumerable<TimeEntry> times = OleDBHelper.query(
 				"SELECT TimeEntry.* FROM TimeEntry, WorkMonth"
 				+ " WHERE TimeEntry.EmpId = WorkMonth.EmpId"
-				+ " AND WorkMonth.ID = ?"
+				+ (WorkMonthIDs.Length == 0 ? "" : " AND WorkMonth.ID IN " + OleDBHelper.sqlInArrayParams(WorkMonthIDs))
 				+ " AND (TimeEntry.GrantID = WorkMonth.GrantID"
 				// special case, sql doesn't like WHERE foo IN ()
 				+ (grants.Length == 0 ? "" : " OR TimeEntry.GrantID IN " + OleDBHelper.sqlInArrayParams(grants))
 				+ ") AND TimeEntry.YearNumber = WorkMonth.WorkYear"
 				+ " AND TimeEntry.MonthNumber = WorkMonth.WorkingMonth"
 				+ " ORDER BY TimeEntry.GrantID, TimeEntry.DayNumber ASC"
-				, new string[] { WorkMonthID }.Concat(grants)
 				, TimeEntry.fromRow
+				, WorkMonthIDs.Concat(grants).ToArray()
 			);
-			return groupTimes(times, grants);
+			Dictionary<string, IEnumerable<double>> grouped = groupTimes(times);
+
+			// make sure there is some entry for each key, even if we didn't find any TimeEntries for it
+			grants.ForEach(key => {
+				if (!grouped.ContainsKey(key))
+					grouped.Add(key, new List<double>(defaultMonthLength));
+			});
+			return grouped;
+		}
+		
+		// helper method to go from getWorkMonthX to requestFromWorkMonth
+		private Dictionary<string, IEnumerable<double>> requestFromWorkMonth(IEnumerable<GrantMonth> grantMonths, string[] grants)
+		{
+			int length = DateTime.DaysInMonth(grantMonths.First().workYear, grantMonths.First().workMonth + 1);
+			return requestFromWorkMonth(grantMonths.Select(month => month.ID.ToString()).ToArray(), grants, length);
 		}
 
-		private Dictionary<string, IEnumerable<double>> groupTimes(IEnumerable<TimeEntry> times, string[] requiredkeys)
+		// helper method for requestFromWorkMonth
+		// form TimeEntries into arrays organized by key
+		private Dictionary<string, IEnumerable<double>> groupTimes(IEnumerable<TimeEntry> times)
 		{
 			Dictionary<string, IEnumerable<double>> groupdict = times.GroupBy(time => time.grantID).Where(group=>group.Count() > 0).ToDictionary(
 				group => group.Key.ToString(),
@@ -222,48 +289,29 @@ namespace GrantApplication
 					group.ForEach(entry => days[entry.dayNumber-1] = entry.grantHours); // days are 1-indexed, months are 0-indexed?
 					return days.AsEnumerable();
 				}
-				//group => group.Select(time => time.grantHours)
 			);
-			requiredkeys.ForEach(key => {
-				if (!groupdict.ContainsKey(key))
-					groupdict.Add(key, new List<double>(0));
-			});
 			return groupdict;
 		}
 
 		private void viewrequest(HttpContext context, int? id, NameValueCollection query)
 		{
-			string grantstr = query["grant"] == null ? "" : query["grant"];
-			string empid = query["employee"];
-			string year = query["year"];
-			string month = query["month"];
-			string workmonth = query["request"];
 			bool extras = query["withextras"] == "true";
-			if (extras)
+			string[] grants = extras ? extragrants : noextragrants;
+			IEnumerable<GrantMonth> months = getWorkMonthsFromQuery(query);
+			if (months == null)
 			{
-				grantstr += "," + Globals.GrantID_Leave + "," + Globals.GrantID_NonGrant;
-			}
-			string[] grants = grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).ToArray();
-			Dictionary<string, IEnumerable<double>> groupTimes;
-			if (workmonth != null)
-			{
-				groupTimes = requestFromWorkMonth(id, grants, workmonth);
-			}
-			else if (grants.Length > 0 && empid != null && year != null && month != null)
-			{
-				groupTimes = getrequest(id, grants, empid, year, month);
-			}
-			else {
 				writeResult(context, false, "Missing employee id or grant number or date");
 				return;
 			}
+			Dictionary<string, IEnumerable<double>> groupTimes = requestFromWorkMonth(months, grants);
 			if (extras)
 			{
-				renameGrantExtras(groupTimes);
+				groupTimes = renameGrantExtras(groupTimes);
 			}
 			writeResult(context, true, groupTimes);
 		}
 
+		// helper method for viewrequest et al.
 		private Dictionary<string, IEnumerable<double>> renameGrantExtras(Dictionary<string, IEnumerable<double>> groupTimes)
 		{
 			renameIfExists(groupTimes, Globals.GrantID_Leave.ToString(), "leave");
@@ -281,56 +329,54 @@ namespace GrantApplication
 			}
 		}
 
-
-		private void sendApproval(HttpContext context, NameValueCollection query, int? id)
+		private void sendApproval(HttpContext context, int? id, NameValueCollection query)
 		{
-			string grant = query["grant"];
-			string employee = query["employee"];
 			bool? approve = null;
-			int? month = null;
-			int? year = null;
 			try
 			{
 				approve = bool.Parse(query["approval"]);
-				month = Int32.Parse(query["month"]);
-				year = Int32.Parse(query["year"]);
 			}
-			catch (Exception) {
+			catch (Exception)
+			{
 				writeResult(context, false, "Formatting error in field");
 				return;
 			}
-			if (grant == null || month == null || year == null || employee == null)
+			//GrantMonth[] gmz = tmpGm.Concat(getWorkMonthIDs(
+			//GrantMonth[] gm = getWorkMonthsFromQuery(query).ToArray();
+			IEnumerable<GrantMonth> tmpGm = getWorkMonthsFromQuery(query);
+			if (tmpGm == null || tmpGm.Count() == 0)
 			{
 				writeResult(context, false, "Missing required field");
+				return;
 			}
 			else
 			{
+				// It seems silly not to support both input types, but we have to have the non-grant/leave WorkMonths for approveOrDisapprove()
+				// and have no way of ensuring they're included (save for some inner join shenanigans)
+				// So instead, let's get one of the GrantMonths we grabbed already and use it to collect the stragglers
+				GrantMonth firstGm = tmpGm.First();
+				IEnumerable<GrantMonth> extraGm = getWorkMonthIDs(extragrants, firstGm.EmpID.ToString(), firstGm.workYear.ToString(), firstGm.workMonth.ToString());
+				GrantMonth[] workmonths = tmpGm.Concat(extraGm).GroupBy(month => month.ID).Select(months => months.First()).ToArray();
+				// ^ union() would be better but doesn't support lambdas; this is the stackoverflow-approved substitute
+
 				string reason = query["reason"];
 				reason = reason != null ? reason : "No reason given.";
 				Tuple<bool, object> result = OleDBHelper.withConnection(conn =>
 				{
-					Employee user = OleDBHelper.query(
-						"SELECT * FROM EmployeeList WHERE ID = " + id, new string[] { }, row => new Employee(row), conn
-					).First();
-					List<Employee> employees = OleDBHelper.query(
-						"SELECT * FROM EmployeeList WHERE ID = ?", new string[] { employee }, row => new Employee(row), conn
+					Employee user = OleDBHelper.query(conn,
+						"SELECT * FROM EmployeeList WHERE ID = " + id, Employee.fromRow
+					).SingleOrDefault();
+					List<Grant> grants = OleDBHelper.query(conn,
+						"SELECT * FROM GrantInfo WHERE ID IN (" + OleDBHelper.sqlInArrayParams(workmonths) + ")"
+						, Grant.fromRow
+						, workmonths.Select(g => g.ID.ToString()).ToArray()
 					).ToList();
-					if (employees.Count == 0)
+					Employee employee = OleDBHelper.query(conn, "SELECT * FROM EmployeeList WHERE ID = " + workmonths[0].EmpID, Employee.fromRow
+					).SingleOrDefault();
+					if (GrantApplication._Default.approveOrDisapproveStateless(approve.Value, reason, employee, user,
+						grants, workmonths[0].workMonth, workmonths[0].workYear))
 					{
-						return new Tuple<bool, object>(false, "No such employee");
-					}
-					string[] grantstrs = grant.Split(',');
-					string grantquery = OleDBHelper.sqlInArrayParams(grantstrs);
-					List<Grant> grants = OleDBHelper.query(
-						"SELECT * FROM GrantInfo WHERE ID IN " + grantquery, grantstrs, Grant.fromRow, conn
-					).ToList();
-					if (grants.Count == 0)
-					{
-						return new Tuple<bool, object>(false, "No such grant(s)");
-					}
-					if (GrantApplication._Default.approveOrDisapproveStateless(approve.Value, reason, employees[0], user, grants, month.Value, year.Value))
-					{
-						return new Tuple<bool, object>(true, "Sent email to " + employees[0].firstName + " " + employees[0].lastName);
+						return new Tuple<bool, object>(true, "Sent email to " + employee.firstName + " " + employee.lastName);
 					}
 					else
 					{
@@ -347,8 +393,8 @@ namespace GrantApplication
 			empId = (empId != null) ? empId : "";
 			IEnumerable<Employee> emps = OleDBHelper.query<Employee>(
 				"SELECT * FROM EmployeeList WHERE registered = true AND EmployeeNum = ?",
-				new String[] { empId },
-				row => new Employee(row)
+				Employee.fromRow,
+				empId
 			);
 			Employee emp = emps.FirstOrDefault();
 			if (!Employee.TestPassword(emp, context.Request.QueryString["pass"]))

@@ -172,6 +172,12 @@ namespace GrantApplication
 		{
 			return emp != null && emp.password == emp.HashPassword(p);
 		}
+
+		public static Employee fromRow(DataRow dr)
+		{
+			return new Employee(dr);
+		}
 	}
+
    
 }
