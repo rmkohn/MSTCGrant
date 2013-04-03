@@ -54,9 +54,9 @@ Optional arguments: `withextras=true` adds the special grants for non-grant time
 
 <div id="approve"/>
 #### approve
-> Arguments: approve (boolean: whether the user is approving or rejecting this grant request)
-Additional arguments: grant request ID or employee ID, year, and month
-Optional arguments: reason for approval/disapproval
+> Arguments: approval (boolean: whether the user is approving or rejecting this grant request)  
+Additional arguments: grant request ID or employee ID, year, and month  
+Optional arguments: reason for approval/disapproval  
 
 > Send an approval/disapproval email concerning a particular grant request.
 

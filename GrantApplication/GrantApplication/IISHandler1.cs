@@ -24,8 +24,8 @@ namespace GrantApplication
 		#region IHttpHandler Members
 
 
-		static string[] extragrants = new string[] { Globals.GrantID_Leave.ToString(), Globals.GrantID_NonGrant.ToString() };
-		static string[] noextragrants = new string[] { };
+		static string[] extragrants = { Globals.GrantID_Leave.ToString(), Globals.GrantID_NonGrant.ToString() };
+		static string[] noextragrants = { };
 
 		public bool IsReusable
 		{
@@ -135,8 +135,8 @@ namespace GrantApplication
 				//string sqlquery = "SELECT WorkMonth.* FROM WorkMonth"
 							+ " AND SupervisorID = " + id;
 			//string[] sqlkeys = new string[] { "GrantInfo.GrantNumber", "EmployeeList.EmployeeNum", "WorkMonth.Status" };
-			string[] sqlkeys = new string[] { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.Status" };
-			string[] sqlvals = new string[] { query["grant"], query["employee"], status };
+			string[] sqlkeys = { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.Status" };
+			string[] sqlvals = { query["grant"], query["employee"], status };
 			IEnumerable<string> sqlparams;
 			sqlquery = OleDBHelper.appendConditions(sqlquery, sqlkeys, sqlvals, out sqlparams);
 			IEnumerable<GrantMonth> gm = OleDBHelper.query(
@@ -177,13 +177,14 @@ namespace GrantApplication
 
 				var result = new
 				{
-					hours = times,
-					month = month.workMonth,
-					year  = month.workYear,
-					status = month.curStatus,
+					hours      = times,
+					month      = month.workMonth,
+					year       = month.workYear,
+					status     = month.curStatus,
+					id         = month.ID,
 					supervisor = supervisor,
-					employee = employee,
-					grant = grant
+					employee   = employee,
+					grant      = grant
 				};
 				writeResult(context, true, result);
 			}
