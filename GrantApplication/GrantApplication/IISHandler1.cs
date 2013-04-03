@@ -174,6 +174,7 @@ namespace GrantApplication
 				SafeEmployee employee = emps.Where(e => e.id == month.EmpID.ToString()).SingleOrDefault();
 				SafeEmployee supervisor = emps.Where(e => e.id == month.supervisorID.ToString()).SingleOrDefault();
 				context.Session["ID"] = month.supervisorID;
+				context.Session["WorkMonthID"] = month.ID;
 
 				var result = new
 				{
@@ -344,10 +345,15 @@ namespace GrantApplication
 			}
 			//GrantMonth[] gmz = tmpGm.Concat(getWorkMonthIDs(
 			//GrantMonth[] gm = getWorkMonthsFromQuery(query).ToArray();
+			int? idFromEmail = (int?)context.Session["WorkMonthID"];
 			IEnumerable<GrantMonth> tmpGm = getWorkMonthsFromQuery(query);
+			if ((tmpGm == null || tmpGm.Count() == 0) && idFromEmail.HasValue)
+			{
+					tmpGm = getWorkMonthIDs(new string[] { context.Session["WorkMonthID"].ToString() });
+			}
 			if (tmpGm == null || tmpGm.Count() == 0)
 			{
-				writeResult(context, false, "Missing required field");
+				writeResult(context, false, "Missing required field or no such entry");
 				return;
 			}
 			else
@@ -359,7 +365,7 @@ namespace GrantApplication
 				IEnumerable<GrantMonth> extraGm = getWorkMonthIDs(extragrants, firstGm.EmpID.ToString(), firstGm.workYear.ToString(), firstGm.workMonth.ToString());
 				GrantMonth[] workmonths = tmpGm.Concat(extraGm).GroupBy(month => month.ID).Select(months => months.First()).ToArray();
 				// ^ union() would be better but doesn't support lambdas; this is the stackoverflow-approved substitute
-
+				
 				string reason = query["reason"];
 				reason = reason != null ? reason : "No reason given.";
 				Tuple<bool, object> result = OleDBHelper.withConnection(conn =>
@@ -370,7 +376,7 @@ namespace GrantApplication
 					List<Grant> grants = OleDBHelper.query(conn,
 						"SELECT * FROM GrantInfo WHERE ID IN (" + OleDBHelper.sqlInArrayParams(workmonths) + ")"
 						, Grant.fromRow
-						, workmonths.Select(g => g.ID.ToString()).ToArray()
+						, workmonths.Select(g => g.grantID.ToString()).ToArray()
 					).ToList();
 					Employee employee = OleDBHelper.query(conn, "SELECT * FROM EmployeeList WHERE ID = " + workmonths[0].EmpID, Employee.fromRow
 					).SingleOrDefault();

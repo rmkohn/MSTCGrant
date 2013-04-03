@@ -8,7 +8,7 @@ The commands available so far are
 - [`listgrants`](#listgrants) `[grant] [employee] [status=new|pending|approved|disapproved|final_approved]`
 - [`listrequests`](#listrequests)
 - [`viewrequest`](#viewrequest) `(employee year month | id) [grant] [withextras]`
-- [`approve`](#approve) `(employee year month | id) approve [reason]`
+- [`approve`](#approve) `[(employee year month | id)] approve [reason]`
 - [`logout`](#logout)
 - [`debug`](#debug)
 - [`email`](#email) (employee year month | `id`)
@@ -55,10 +55,9 @@ Optional arguments: `withextras=true` adds the special grants for non-grant time
 <div id="approve"/>
 #### approve
 > Arguments: approval (boolean: whether the user is approving or rejecting this grant request)  
-Additional arguments: grant request ID or employee ID, year, and month  
-Optional arguments: reason for approval/disapproval  
+Optional arguments: reason for approval/disapproval, grant request ID or employee ID, year, and month  
 
-> Send an approval/disapproval email concerning a particular grant request.
+> Send an approval/disapproval email concerning a particular grant request.  If you've used the `email` command during this session, and no grant request is provided, the email request will be used instead.  
 
 <div id="logout"/>
 #### logout
