@@ -5,6 +5,13 @@
 
 <asp:Content ID="HeaderContent" runat="server" ContentPlaceHolderID="HeadContent">
 <script type="text/javascript">
+    
+    if (navigator.userAgent.toLowerCase().indexOf("android") != -1) {
+        var newUrl = window.location.toString().replace(/^https?/, "grantapp");
+        window.location.replace(newUrl);
+    }
+
+
     var weeklyTotals = null;
     var bForApproval = false;
     var reasonTxt = "";

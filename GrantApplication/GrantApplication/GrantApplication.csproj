@@ -86,6 +86,7 @@
     <Content Include="Forward.png" />
     <Content Include="forward_orange.png" />
     <Content Include="Go.png" />
+    <Content Include="link.html" />
     <Content Include="image_pending.jpg" />
     <Content Include="Maintenance.aspx" />
     <Content Include="Maintenance.htm" />

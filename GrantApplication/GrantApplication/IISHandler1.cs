@@ -163,6 +163,7 @@ namespace GrantApplication
 			else
 			{
 				Dictionary<string, IEnumerable<double>> times = renameGrantExtras(requestFromWorkMonth(months, extragrants));
+				//renameIfExists(times, month.grantID.ToString(), "grant");
 				IEnumerable<SafeEmployee> emps = OleDBHelper.query(
 					"SELECT * FROM EmployeeList WHERE ID IN (" + month.supervisorID + ", " + month.EmpID + ")",
 					SafeEmployee.fromRow
