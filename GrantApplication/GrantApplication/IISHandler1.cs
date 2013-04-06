@@ -263,12 +263,12 @@ namespace GrantApplication
 				, TimeEntry.fromRow
 				, WorkMonthIDs.Concat(grants).ToArray()
 			);
-			Dictionary<string, IEnumerable<double>> grouped = groupTimes(times);
+			Dictionary<string, IEnumerable<double>> grouped = groupTimes(times, defaultMonthLength);
 
 			// make sure there is some entry for each key, even if we didn't find any TimeEntries for it
 			grants.ForEach(key => {
 				if (!grouped.ContainsKey(key))
-					grouped.Add(key, new List<double>(defaultMonthLength));
+					grouped.Add(key, new double[defaultMonthLength]);
 			});
 			return grouped;
 		}
@@ -282,13 +282,13 @@ namespace GrantApplication
 
 		// helper method for requestFromWorkMonth
 		// form TimeEntries into arrays organized by key
-		private Dictionary<string, IEnumerable<double>> groupTimes(IEnumerable<TimeEntry> times)
+		private Dictionary<string, IEnumerable<double>> groupTimes(IEnumerable<TimeEntry> times, int defaultLength)
 		{
-			Dictionary<string, IEnumerable<double>> groupdict = times.GroupBy(time => time.grantID).Where(group=>group.Count() > 0).ToDictionary(
+			Dictionary<string, IEnumerable<double>> groupdict = times.GroupBy(time => time.grantID).ToDictionary(
 				group => group.Key.ToString(),
 				group => {
-					int length = DateTime.DaysInMonth(group.First().yearNumber, group.First().monthNumber+1);
-					double[] days = new double[length];
+					//int length = DateTime.DaysInMonth(group.First().yearNumber, group.First().monthNumber+1);
+					double[] days = new double[defaultLength];
 					group.ForEach(entry => days[entry.dayNumber-1] = entry.grantHours); // days are 1-indexed, months are 0-indexed?
 					return days.AsEnumerable();
 				}
@@ -350,7 +350,7 @@ namespace GrantApplication
 			IEnumerable<GrantMonth> tmpGm = getWorkMonthsFromQuery(query);
 			if ((tmpGm == null || tmpGm.Count() == 0) && idFromEmail.HasValue)
 			{
-					tmpGm = getWorkMonthIDs(new string[] { context.Session["WorkMonthID"].ToString() });
+				tmpGm = getWorkMonthIDs(new string[] { context.Session["WorkMonthID"].ToString() });
 			}
 			if (tmpGm == null || tmpGm.Count() == 0)
 			{
