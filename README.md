@@ -80,4 +80,4 @@ But none of that actually exists yet, so it just logs you in as whomever's ID yo
 #### email
 > Arguments: id
 
-> This should be called with the id provided in a grant approval request email.  `message` in the server response holds a json object with `month`, `year`, `supervisor` (itself a json object with entries for `firstname` `lastname` and `id`), `employee` (ditto), `status` (as per `listgrants`), `grant`, and `hours` (as per `viewrequest`)
+> This should be called with the id provided in a grant approval request email.  `message` in the server response holds a json object with `month`, `year`, `supervisor` (itself a json object with entries for `firstname` `lastname` and `id`), `employee` (ditto), `status` (as per `listgrants`), `grant`, and `hours` (as per `viewrequest` with `withextras=true`, except that the hours for the grant will be under `grant` instead of the grant ID)  
