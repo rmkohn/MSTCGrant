@@ -75,6 +75,9 @@ namespace GrantApplication
 						case "approve":
 							sendApproval(context, id, query);
 							break;
+						case "updatehours":
+							doUpdateHours(context, id, query);
+							break;
 						case "logout":
 							context.Session.Abandon();
 							writeResult(context, true, "Logged out successfully");
@@ -284,13 +287,26 @@ namespace GrantApplication
 		// form TimeEntries into arrays organized by key
 		private Dictionary<string, IEnumerable<double>> groupTimes(IEnumerable<TimeEntry> times, int defaultLength)
 		{
-			Dictionary<string, IEnumerable<double>> groupdict = times.GroupBy(time => time.grantID).ToDictionary(
+			return groupTimeEntries(times, defaultLength).ToDictionary(
+				kv => kv.Key,
+				kv => kv.Value.Select(time => time == null ? 0 : time.grantHours)
+			);
+		}
+
+		private Dictionary<string, TimeEntry[]> groupTimeEntries(IEnumerable<TimeEntry> times, int defaultLength)
+		{
+			if (times == null || times.Count() == 0)
+			{
+				return new Dictionary<string, TimeEntry[]>();
+			}
+			Dictionary<string, TimeEntry[]> groupdict = times.GroupBy(time => time.grantID).ToDictionary(
 				group => group.Key.ToString(),
-				group => {
+				group =>
+				{
 					//int length = DateTime.DaysInMonth(group.First().yearNumber, group.First().monthNumber+1);
-					double[] days = new double[defaultLength];
-					group.ForEach(entry => days[entry.dayNumber-1] = entry.grantHours); // days are 1-indexed, months are 0-indexed?
-					return days.AsEnumerable();
+					TimeEntry[] days = new TimeEntry[defaultLength];
+					group.ForEach(entry => days[entry.dayNumber - 1] = entry); // days are 1-indexed, months are 0-indexed?
+					return days;
 				}
 			);
 			return groupdict;
@@ -395,6 +411,135 @@ namespace GrantApplication
 			}
 		}
 
+		private void doUpdateHours(HttpContext context, int? id, NameValueCollection query)
+		{
+			string empidstr = query["employee"];
+			string supidstr = query["supervisor"];
+			string yearstr = query["year"];
+			string monthstr = query["month"];
+			string hourstr = query["hours"];
+			if (empidstr == null || supidstr == null || yearstr == null || monthstr == null || hourstr == null)
+			{
+				writeResult(context, false, "missing required field(s)");
+				return;
+			}
+			int empid, supid, year, month;
+			if (    !int.TryParse(empidstr, out empid) || !int.TryParse(supidstr, out supid)
+			     || !int.TryParse(yearstr, out year) || !int.TryParse(monthstr, out month))
+			{
+				writeResult(context, false, "misformatted field(s)");
+				return;
+			}
+			try
+			{
+				Dictionary<string, double[]> hours = new JavaScriptSerializer().Deserialize<Dictionary<string, double[]>>(hourstr);
+				Dictionary<int, double[]> hoursById = hours.ToDictionary(
+					kv =>
+					{
+						switch (kv.Key)
+						{
+							case "nongrant": return Globals.GrantID_NonGrant;
+							case "leave": return Globals.GrantID_Leave;
+							default: return int.Parse(kv.Key);
+						}
+					},
+					kv => kv.Value
+				);
+				Dictionary<string, int> success = updateHours(empid, supid, year, month, hoursById);
+				writeResult(context, true, success);
+			}
+			//catch (Exception e)
+			//{
+			//	string result = string.Format("parsing error in hours: {0}\nstack trace: {1}", e.Message, e.StackTrace).Replace("\n", Environment.NewLine);
+			//	writeResult(context, false, result);
+			//}
+			finally { }
+		}
+
+		private Dictionary<string, int> updateHours(int employee, int supervisor, int year, int month, Dictionary<int, double[]> hours)
+		{
+			//IEnumerable<string> realGrants = hours.Keys.Where(grantstr =>
+			//{
+			//	int val; // unused
+			//	return (int.TryParse(grantstr, out val));
+			//});
+
+			//renameIfExists(hours, "nongrant", Globals.GrantID_NonGrant.ToString());
+			//renameIfExists(hours, "leave", Globals.GrantID_Leave.ToString());
+			int monthlength = DateTime.DaysInMonth(year, month);
+			IEnumerable<string> hourkeys = from key in hours.Keys select key.ToString();
+
+			return OleDBHelper.withConnection(conn =>
+			{
+				IEnumerable<TimeEntry> oldtimes = OleDBHelper.query(
+					"SELECT TimeEntry.* FROM TimeEntry"
+					+ " WHERE TimeEntry.GrantID IN " + OleDBHelper.sqlInArrayParams(hourkeys)
+					+ " AND TimeEntry.EmpId = ?"
+					+ " AND TimeEntry.YearNumber = ?"
+					+ " AND TimeEntry.MonthNumber = ?"
+					+ " ORDER BY TimeEntry.GrantID, TimeEntry.DayNumber ASC"
+					, TimeEntry.fromRow
+					, hourkeys.Concat(new string[] { employee.ToString(), year.ToString(), month.ToString() }).ToArray()
+				);
+				//writeResult(HttpContext.Current, false, oldtimes);
+				//return null;
+				// funny story, our data is exactly backwards: we need the old hours ordered and the new ones unordered
+				// you could also use groupJoin or Contains on unordered<->unordered but I felt guilty about its likely performance
+				Dictionary<string, TimeEntry[]> oldgroup = groupTimeEntries(oldtimes, monthlength);
+				Dictionary<string, int> results = new Dictionary<string, int> { { "added", 0 }, { "updated", 0 }, { "unchanged", 0 } };
+				hours.ForEach(kv =>
+				{
+					int grantid = kv.Key;
+					TimeEntry[] oldhours;
+					IEnumerable<double> properLengthMonth = kv.Value.Concat(ezEnumerable(() => 0.0)).Take(monthlength);
+					if (oldgroup.TryGetValue(grantid.ToString(), out oldhours))
+					{
+						properLengthMonth.ForEach((time, dayIndex) =>
+						{
+							int day = dayIndex + 1;
+							results[addOrUpdateEntry(conn, employee, supervisor, grantid, year, month, day, time, oldhours[dayIndex])]++;
+						});
+					}
+					else
+					{
+						properLengthMonth.ForEach((time, dayIndex) =>
+						{
+							int day = dayIndex + 1;
+							results[addOrUpdateEntry(conn, employee, supervisor, grantid, year, month, day, time, null)]++;
+						});
+					}
+				});
+				return results;
+			});
+			
+		}
+
+		public string addOrUpdateEntry(OleDbConnection conn, int employee, int supervisor, int grant, int year, int month, int day, double time, TimeEntry oldentry)
+		{
+			// No, seriously.  addNewTimeEntry() and updateTimeEntry() unconditionally the connection they're passed.
+			// Methods in Default.aspx.cs that call them unconditionally close them first, but we're a little more careful.
+			// Why is all of this being done?  I have no idea.
+			if (conn.State == ConnectionState.Open)
+			{
+				conn.Close();
+			}
+			if (oldentry == null)
+			{
+				if (time != 0)
+				{
+					TimeEntry newentry = new TimeEntry(time, grant, employee, supervisor, month, day, year);
+					_Default.addNewTimeEntry(newentry, new OleDbCommand(), conn);
+					return "added";
+				}
+			}
+			else if (oldentry.grantHours != time)
+			{
+				oldentry.grantHours = time;
+				_Default.updateTimeEntry(oldentry, new OleDbCommand(), conn);
+				return "updated";
+			}
+			return "unchanged";
+		}
 
 		public void doLogin(HttpContext context, String empId, String pass)
 		{
@@ -420,19 +565,31 @@ namespace GrantApplication
 		private void writeResult(HttpContext context, Boolean success, Object message)
 		{
 			JavaScriptSerializer s = new JavaScriptSerializer();
-			Dictionary<String, Object> dict = new Dictionary<String, Object>();
-			dict["success"] = success;
-			dict["message"] = message;
+			var output = new
+			{
+				success = success,
+				message = message
+			};
+			//Dictionary<String, Object> dict = new Dictionary<String, Object>();
+			//dict["success"] = success;
+			//dict["message"] = message;
 #if DEBUG
-			context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(dict)));
+			//context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(dict)));
+			context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(output)));
+
 #else
-			context.Response.Write(s.Serialize(dict));
+			//context.Response.Write(s.Serialize(dict));
+			context.Response.Write(s.Serialize(output));
 #endif
 
 		}
 
-
-
+		// this has to be built in, but I can't find it for the life of me
+		IEnumerable<T> ezEnumerable<T>(Func<T> fn)
+		{
+			while (true)
+				yield return fn();
+		}
 
 		class SafeEmployee
 		{

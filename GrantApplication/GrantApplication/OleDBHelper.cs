@@ -83,7 +83,7 @@ namespace GrantApplication
 		}
 
 		// fill out (?)s for an IN (?, ...) statement on the provided array
-		static public string sqlInArrayParams(object[] inarray)
+		static public string sqlInArrayParams(IEnumerable<object> inarray)
 		{
 			return "(" + string.Join(", ", inarray.Select(item => "?")) + ")";
 		}

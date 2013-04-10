@@ -34,5 +34,18 @@ namespace GrantApplication
 			}
 			return te;
 		}
+
+		public TimeEntry() { }
+
+		public TimeEntry(double hours, int grantID, int empID, int supID, int month, int day, int year)
+		{
+			this.grantHours = hours;
+            this.grantID = grantID;
+            this.empID = empID;
+			this.supervisorID = supID;
+            this.monthNumber = month;
+            this.dayNumber = day;
+            this.yearNumber = year;
+		}
     }
 }
