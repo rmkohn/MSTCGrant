@@ -235,6 +235,7 @@
     </Compile>
     <Compile Include="TimeEntry.cs" />
     <Compile Include="WeeklyGrantHours.cs" />
+    <Compile Include="WorkMonthRequest.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="packages.config" />
