@@ -63,6 +63,9 @@ namespace GrantApplication
 						case "listgrants":
 							listgrants(context, id, query);
 							break;
+						case "listallgrants":
+							listallgrants(context, id, query);
+							break;
 						case "listrequests":
 							listrequests(context, id, query);
 							break;
@@ -106,6 +109,15 @@ namespace GrantApplication
 				, SafeEmployee.fromRow
 			);
 			writeResult(context, true, defaultemployees);
+		}
+
+		private void listallgrants(HttpContext context, int? id, NameValueCollection query)
+		{
+			IEnumerable<Grant> grants = OleDBHelper.query(
+				"SELECT GrantInfo.* FROM GrantInfo"
+				, Grant.fromRow
+			);
+			writeResult(context, true, grants);
 		}
 
 		private void listgrants(HttpContext context, int? id, NameValueCollection query)
