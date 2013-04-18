@@ -115,6 +115,10 @@ namespace GrantApplication
 		{
 			IEnumerable<Grant> grants = OleDBHelper.query(
 				"SELECT GrantInfo.* FROM GrantInfo"
+				+ " WHERE GrantInfo.ID NOT IN ( "
+				+ Globals.GrantID_Leave + ", " 
+				+ Globals.GrantID_NonGrant + ", "
+				+ Globals.GrantID_Placeholder + ")"
 				, Grant.fromRow
 			);
 			writeResult(context, true, grants);
