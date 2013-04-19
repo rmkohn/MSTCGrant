@@ -13,6 +13,7 @@ The commands available so far are
 - [`debug`](#debug)
 - [`email`](#email) `(employee grant year month | id)`
 - [`add`](#add) `employee year month hours`
+- [`listallgrants`](#listallgrants)
 
 ----
 
@@ -87,5 +88,11 @@ But none of that actually exists yet, so it just logs you in as whomever's ID yo
 #### add
 > Arguments: employee, year, month, hours
 
-> `hours` should be a JSON object with the same format as is passed back by viewrequest: use the IDs of whichever grants you'd like to update, as well as `nongrant` and `leave`, as keys pointing to arrays of doubles holding the new times for the month.  Any fields left out are left alone (they're all optional).  Arrays that don't fit the length of the month are currently truncated or padded with zeroes as appropriate, but that should probably be changed.  
+> `Hours` should be a JSON object with the same format as is passed back by viewrequest; use the IDs of whichever grants you'd like to update, as well as `nongrant` and `leave`, as keys pointing to arrays of doubles holding the new times for the month.  Any fields left out are left alone (they're all optional).  Arrays that don't fit the length of the month are currently truncated or padded with zeroes as appropriate, but that should probably be changed.  
 > The result passed back is a JSON object containing the number of TimeEntry fields that were added, changed, and left unchanged.  
+
+<div id="listallgrants"/>
+#### listallgrants
+> No arguments.
+
+> Return information about every grant in the database.  This is intended to provide a list of grants for the time-entry app.
