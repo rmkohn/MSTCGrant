@@ -169,6 +169,11 @@ namespace GrantApplication
 		private void doEmailGrantId(HttpContext context, NameValueCollection query)
 		{
 			WorkMonthRequest workmonth = WorkMonthRequest.fromQuery(query);
+			if (workmonth == null)
+			{
+				writeResult(context, false, "Missing one or more required fields");
+				return;
+			}
 			IEnumerable<GrantMonth> months = workmonth.grantMonths;
 			if (months == null || months.Count() > 1)
 			{
@@ -295,20 +300,21 @@ namespace GrantApplication
 		{
 			string supidstr = query["supervisor"];
 			string hoursstr = query["hours"];
-			string empidstr = query["employee"];
+			//string empidstr = query["employee"];
 			string yearstr = query["year"];
 			string monthstr = query["month"];
-			if (supidstr == null || hoursstr == null || empidstr == null || yearstr == null || monthstr == null)
+			if (supidstr == null || hoursstr == null || yearstr == null || monthstr == null)
 			{
 				writeResult(context, false, "missing required field(s)");
 				return;
 			}
 			int supid, empid, year, month;
-			if (!int.TryParse(supidstr, out supid) || !int.TryParse(empidstr, out empid) || !int.TryParse(yearstr, out year) || !int.TryParse(monthstr, out month))
+			if (!int.TryParse(supidstr, out supid) || !id.HasValue || !int.TryParse(yearstr, out year) || !int.TryParse(monthstr, out month))
 			{
 				writeResult(context, false, "misformatted required field(s)");
 				return;
 			}
+			empid = id.Value;
 
 			Dictionary<int, double[]> hoursById = null;
 			try
