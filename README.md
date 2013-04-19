@@ -8,10 +8,11 @@ The commands available so far are
 - [`listgrants`](#listgrants) `[grant] [employee] [status=new|pending|approved|disapproved|final_approved]`
 - [`listrequests`](#listrequests)
 - [`viewrequest`](#viewrequest) `(employee year month | id) [grant] [withextras]`
-- [`approve`](#approve) `[(employee year month | id)] approve [reason]`
+- [`approve`](#approve) `[(employee grant year month | id)] approve [reason]`
 - [`logout`](#logout)
 - [`debug`](#debug)
-- [`email`](#email) (employee year month | `id`)
+- [`email`](#email) `(employee grant year month | id)`
+- [`add`](#add) `employee year month hours`
 
 ----
 
@@ -81,3 +82,10 @@ But none of that actually exists yet, so it just logs you in as whomever's ID yo
 > Arguments: id
 
 > This should be called with the id provided in a grant approval request email.  `message` in the server response holds a json object with `month`, `year`, `supervisor` (itself a json object with entries for `firstname` `lastname` and `id`), `employee` (ditto), `status` (as per `listgrants`), `grant`, and `hours` (as per `viewrequest` with `withextras=true`, except that the hours for the grant will be under `grant` instead of the grant ID)  
+
+<div id="add"/>
+#### add
+> Arguments: employee, year, month, hours
+
+> `hours` should be a JSON object with the same format as is passed back by viewrequest: use the IDs of whichever grants you'd like to update, as well as `nongrant` and `leave`, as keys pointing to arrays of doubles holding the new times for the month.  Any fields left out are left alone (they're all optional).  Arrays that don't fit the length of the month are currently truncated or padded with zeroes as appropriate, but that should probably be changed.  
+> The result passed back is a JSON object containing the number of TimeEntry fields that were added, changed, and left unchanged.  
