@@ -424,7 +424,7 @@ namespace GrantApplication
 			else
 			{
 				context.Session["ID"] = emp.ID;
-				writeResult(context, true, "Logged in as " + emp.firstName + " " + emp.lastName);
+				writeResult(context, true, new SafeEmployee(emp));
 			}
 			return;
 		}
