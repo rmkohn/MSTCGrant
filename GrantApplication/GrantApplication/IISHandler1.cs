@@ -228,10 +228,11 @@ namespace GrantApplication
 				return;
 			}
 			Dictionary<string, IEnumerable<double>> groupTimes = months.getTimes(grants);
-			if (extras)
-			{
-				groupTimes = renameGrantExtras(groupTimes);
-			}
+			if (extras || query["grant"].Contains("non-grant"))
+				renameIfExists(groupTimes, Globals.GrantID_NonGrant.ToString(), "non-grant");
+			if (extras || query["grant"].Contains("leave"))
+				renameIfExists(groupTimes, Globals.GrantID_Leave.ToString(), "leave");
+					
 			writeResult(context, true, groupTimes);
 		}
 

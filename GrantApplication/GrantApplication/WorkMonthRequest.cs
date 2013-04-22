@@ -81,13 +81,28 @@ class WorkMonthRequest
 			}
 			else if (grantstr != null && empid != null && year != null && month != null)
 			{
-				string[] grants = grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).OrderBy(str => str).ToArray();
-				return new WorkMonthRequest(int.Parse(empid), -1, int.Parse(month), int.Parse(year), grants.Select(id => int.Parse(id)).ToArray());
+				IEnumerable<string> grants = grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).OrderBy(str => str);
+				return new WorkMonthRequest(int.Parse(empid), -1, int.Parse(month), int.Parse(year), grants.Select(parseQueryGrant).ToArray());
 				//return getWorkMonthIDs(grants, empid, year, month);
 			}
 		}
 		catch (Exception) { }
 		return null;
+	}
+
+	private static int parseQueryGrant(string grant)
+	{
+		int ret;
+		if (!int.TryParse(grant, out ret))
+		{
+			switch (grant)
+			{
+				case "non-grant": return Globals.GrantID_NonGrant;
+				case "leave": return Globals.GrantID_Leave;
+				default: return -1;
+			}
+		}
+		return ret;
 	}
 
 	// return a GrantMonth object from a WorkMonth ID
