@@ -12,7 +12,7 @@ The commands available so far are
 - [`logout`](#logout)
 - [`debug`](#debug)
 - [`email`](#email) `(employee grant year month | id)`
-- [`add`](#add) `employee year month hours`
+- [`updatehours`](#updatehours) `employee year month hours`
 - [`listallgrants`](#listallgrants)
 
 ----
@@ -52,6 +52,7 @@ Alternative arguments: grant request ID, zero or more comma separated grants (op
 Optional arguments: `withextras=true` adds the special grants for non-grant time and leave time to your request and returns them in the arrays `non-grant` and `leave`.  
 
 > Get the gory details of one or more grants.  The json object returned is formatted like { grant id: [array-of-doubles] }.  
+Passing `non-grant` and/or `leave` as grant ids will work, so the `withextras` argument isn't even needed.
 (Non-grant time and leave are both treated as grants that just happen to have special meanings, they have IDs 52 and 53 respectively.  There's also a special placeholder value with ID 28, which shouldn't ever be needed.)
 
 <div id="approve"/>
@@ -84,8 +85,8 @@ But none of that actually exists yet, so it just logs you in as whomever's ID yo
 
 > This should be called with the id provided in a grant approval request email.  `message` in the server response holds a json object with `month`, `year`, `supervisor` (itself a json object with entries for `firstname` `lastname` and `id`), `employee` (ditto), `status` (as per `listgrants`), `grant`, and `hours` (as per `viewrequest` with `withextras=true`, except that the hours for the grant will be under `grant` instead of the grant ID)  
 
-<div id="add"/>
-#### add
+<div id="updatehours"/>
+#### updatehours
 > Arguments: employee, year, month, hours
 
 > `Hours` should be a JSON object with the same format as is passed back by viewrequest; use the IDs of whichever grants you'd like to update, as well as `nongrant` and `leave`, as keys pointing to arrays of doubles holding the new times for the month.  Any fields left out are left alone (they're all optional).  Arrays that don't fit the length of the month are currently truncated or padded with zeroes as appropriate, but that should probably be changed.  

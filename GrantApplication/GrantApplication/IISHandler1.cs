@@ -322,15 +322,7 @@ namespace GrantApplication
 			{
 				Dictionary<string, double[]> hours = new JavaScriptSerializer().Deserialize<Dictionary<string, double[]>>(hoursstr);
 				hoursById = hours.ToDictionary(
-					kv =>
-					{
-						switch (kv.Key)
-						{
-							case "nongrant": return Globals.GrantID_NonGrant;
-							case "leave": return Globals.GrantID_Leave;
-							default: return int.Parse(kv.Key);
-						}
-					},
+					kv => WorkMonthRequest.parseQueryGrant(kv.Key),
 					kv => kv.Value
 				);
 			}

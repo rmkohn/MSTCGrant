@@ -90,7 +90,7 @@ class WorkMonthRequest
 		return null;
 	}
 
-	private static int parseQueryGrant(string grant)
+	public static int parseQueryGrant(string grant)
 	{
 		int ret;
 		if (!int.TryParse(grant, out ret))
