@@ -139,6 +139,7 @@
     <Content Include="Scripts\jquery-1.4.1.js" />
     <Content Include="Scripts\jquery-1.4.1.min.js" />
     <Content Include="switch.png" />
+    <Content Include="volker.html" />
     <Content Include="Web.config">
       <SubType>Designer</SubType>
     </Content>
@@ -150,6 +151,7 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="301Handler.cs" />
     <Compile Include="About.aspx.cs">
       <DependentUpon>About.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
@@ -186,9 +188,7 @@
       <DependentUpon>Register.aspx</DependentUpon>
     </Compile>
     <Compile Include="Globals.cs" />
-    <Compile Include="Handler1.ashx.cs">
-      <DependentUpon>Handler1.ashx</DependentUpon>
-    </Compile>
+    <Compile Include="NoCache.cs" />
     <Compile Include="OleDBHelper.cs" />
     <Compile Include="Default.aspx.cs">
       <DependentUpon>Default.aspx</DependentUpon>
@@ -203,7 +203,7 @@
     </Compile>
     <Compile Include="Grant.cs" />
     <Compile Include="GrantMonth.cs" />
-    <Compile Include="IISHandler1.cs" />
+    <Compile Include="WebQueryHandler.cs" />
     <Compile Include="JsonPrettyPrinter.cs" />
     <Compile Include="MailObject.cs" />
     <Compile Include="Maintenance.aspx.cs">
@@ -248,7 +248,6 @@
     <Content Include="Site.Master" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Handler1.ashx" />
     <None Include="Properties\PublishProfiles\Profile1.pubxml" />
   </ItemGroup>
   <PropertyGroup>

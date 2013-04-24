@@ -14,7 +14,7 @@ using System.Web.SessionState;
 
 namespace GrantApplication
 {
-	public class IISHandler1 : IHttpHandler, IRequiresSessionState
+	public class WebQueryHandler : IHttpHandler, IRequiresSessionState
 	{
 		/// <summary>
 		/// You will need to configure this handler in the Web.config file of your 
