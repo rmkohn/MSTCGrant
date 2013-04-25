@@ -423,8 +423,15 @@ namespace GrantApplication
 			_Default.AssignSupervisorStateless(request.supervisor.Value, request.grantids[0], request.employee.Value,
 				entries.SelectMany(kv => kv.Value).Where(entry => entry != null).ToList());
 
-			_Default.sendOffEmailStateless(new int[] { request.supervisor.Value }
-				, request.employee.Value, new DateTime(request.year, request.month + 1, 1), grants.ToList(), emp);
+			if (_Default.sendOffEmailStateless(new int[] { request.supervisor.Value }
+				, request.employee.Value, new DateTime(request.year, request.month + 1, 1), grants.ToList(), emp))
+			{
+				writeResult(context, true, "sent email successfully");
+			}
+			else
+			{
+				writeResult(context, false, "failed to send email");
+			}
 		}
 
 		public void doLogin(HttpContext context, String empId, String pass)
