@@ -80,9 +80,11 @@ class WorkMonthRequest
 				IEnumerable<GrantMonth> workmonths = getGrantMonths(workmonthIds);
 				return WorkMonthRequest.fromGrantMonths(workmonths);
 			}
-			else if (grantstr != null && empid != null && year != null && month != null)
+			else if (year != null && month != null)
 			{
-				IEnumerable<string> grants = grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).OrderBy(str => str);
+				IEnumerable<string> grants = grantstr == null
+					? new string[] { }.AsEnumerable()
+					: grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).OrderBy(str => str);
 				return new WorkMonthRequest(parseInt(empid), parseInt(supid), int.Parse(month), int.Parse(year), grants.Select(parseQueryGrant).ToArray());
 				//return getWorkMonthIDs(grants, empid, year, month);
 			}
@@ -133,6 +135,9 @@ class WorkMonthRequest
 	public Dictionary<string, TimeEntry[]> getTimeEntries(string[] grants)
 	{
 		IEnumerable<string> allgrants = grantids.Select(id => id.ToString()).Concat(grants);
+		if (allgrants.Count() == 0)
+			return new Dictionary<string, TimeEntry[]>();
+
 		int defaultMonthLength = DateTime.DaysInMonth(year, month + 1);
 
 		IEnumerable<TimeEntry> times = OleDBHelper.query(

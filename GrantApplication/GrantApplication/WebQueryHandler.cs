@@ -225,16 +225,19 @@ namespace GrantApplication
 			bool extras = query["withextras"] == "true";
 			string[] grants = extras ? extragrants : noextragrants;
 			WorkMonthRequest months = WorkMonthRequest.fromQuery(query);
-			if (months == null)
+			if (months == null || !months.employee.HasValue || months.grantids.Length == 0)
 			{
 				writeResult(context, false, "Missing employee id or grant number or date");
 				return;
 			}
 			Dictionary<string, IEnumerable<double>> groupTimes = months.getTimes(grants);
-			if (extras || query["grant"].Contains("non-grant"))
-				renameIfExists(groupTimes, Globals.GrantID_NonGrant.ToString(), "non-grant");
-			if (extras || query["grant"].Contains("leave"))
-				renameIfExists(groupTimes, Globals.GrantID_Leave.ToString(), "leave");
+			if (query["grant"] != null)
+			{
+				if (extras || query["grant"].Contains("non-grant"))
+					renameIfExists(groupTimes, Globals.GrantID_NonGrant.ToString(), "non-grant");
+				if (extras || query["grant"].Contains("leave"))
+					renameIfExists(groupTimes, Globals.GrantID_Leave.ToString(), "leave");
+			}
 					
 			writeResult(context, true, groupTimes);
 		}
@@ -302,23 +305,7 @@ namespace GrantApplication
 
 		private void doUpdateHours(HttpContext context, int? id, NameValueCollection query)
 		{
-			//string supidstr = query["supervisor"];
 			string hoursstr = query["hours"];
-			////string empidstr = query["employee"];
-			//string yearstr = query["year"];
-			//string monthstr = query["month"];
-			//if (supidstr == null || hoursstr == null || yearstr == null || monthstr == null)
-			//{
-			//	writeResult(context, false, "missing required field(s)");
-			//	return;
-			//}
-			//int supid, empid, year, month;
-			//if (!int.TryParse(supidstr, out supid) || !id.HasValue || !int.TryParse(yearstr, out year) || !int.TryParse(monthstr, out month))
-			//{
-			//	writeResult(context, false, "misformatted required field(s)");
-			//	return;
-			//}
-			//empid = id.Value;
 
 			WorkMonthRequest workrequest = WorkMonthRequest.fromQuery(query);
 			if (workrequest == null || !workrequest.supervisor.HasValue || hoursstr == null)
@@ -344,6 +331,7 @@ namespace GrantApplication
 			//}
 			finally { }
 
+			workrequest.grantids = hoursById.Keys.ToArray();
 			Dictionary<string, int> success = updateHours(workrequest, hoursById);
 			writeResult(context, true, success);
 		}
