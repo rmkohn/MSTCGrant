@@ -5,8 +5,8 @@ using System.Collections.Specialized;
 using System.Linq;
 class WorkMonthRequest
 {
-	public int employee;
-	public int supervisor;
+	public int? employee;
+	public int? supervisor;
 	public int month;
 	public int year;
 	public int[] grantids;
@@ -37,7 +37,7 @@ class WorkMonthRequest
 		return grantmonths;
 	}
 
-	public WorkMonthRequest(int employee, int supervisor, int month, int year, int[] grantids, IEnumerable<GrantMonth> newmonths = null)
+	public WorkMonthRequest(int? employee, int? supervisor, int month, int year, int[] grantids, IEnumerable<GrantMonth> newmonths = null)
 	{
 		this.employee = employee;
 		this.supervisor = supervisor;
@@ -71,6 +71,7 @@ class WorkMonthRequest
 		string year = query["year"];
 		string month = query["month"];
 		string workmonthstr = query["id"];
+		string supid = query["supervisor"];
 		try
 		{
 			if (workmonthstr != null)
@@ -82,12 +83,18 @@ class WorkMonthRequest
 			else if (grantstr != null && empid != null && year != null && month != null)
 			{
 				IEnumerable<string> grants = grantstr.Split(',').Where(g => !string.IsNullOrEmpty(g)).OrderBy(str => str);
-				return new WorkMonthRequest(int.Parse(empid), -1, int.Parse(month), int.Parse(year), grants.Select(parseQueryGrant).ToArray());
+				return new WorkMonthRequest(parseInt(empid), parseInt(supid), int.Parse(month), int.Parse(year), grants.Select(parseQueryGrant).ToArray());
 				//return getWorkMonthIDs(grants, empid, year, month);
 			}
 		}
 		catch (Exception) { }
 		return null;
+	}
+
+	public static int? parseInt(string s)
+	{
+		int i;
+		return int.TryParse(s, out i) ? (int?)i : null;
 	}
 
 	public static int parseQueryGrant(string grant)

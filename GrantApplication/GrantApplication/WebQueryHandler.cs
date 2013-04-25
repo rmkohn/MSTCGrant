@@ -81,6 +81,9 @@ namespace GrantApplication
 						case "updatehours":
 							doUpdateHours(context, id, query);
 							break;
+						case "sendrequest":
+							sendRequest(context, id, query);
+							break;
 						case "logout":
 							context.Session.Abandon();
 							writeResult(context, true, "Logged out successfully");
@@ -299,23 +302,31 @@ namespace GrantApplication
 
 		private void doUpdateHours(HttpContext context, int? id, NameValueCollection query)
 		{
-			string supidstr = query["supervisor"];
+			//string supidstr = query["supervisor"];
 			string hoursstr = query["hours"];
-			//string empidstr = query["employee"];
-			string yearstr = query["year"];
-			string monthstr = query["month"];
-			if (supidstr == null || hoursstr == null || yearstr == null || monthstr == null)
+			////string empidstr = query["employee"];
+			//string yearstr = query["year"];
+			//string monthstr = query["month"];
+			//if (supidstr == null || hoursstr == null || yearstr == null || monthstr == null)
+			//{
+			//	writeResult(context, false, "missing required field(s)");
+			//	return;
+			//}
+			//int supid, empid, year, month;
+			//if (!int.TryParse(supidstr, out supid) || !id.HasValue || !int.TryParse(yearstr, out year) || !int.TryParse(monthstr, out month))
+			//{
+			//	writeResult(context, false, "misformatted required field(s)");
+			//	return;
+			//}
+			//empid = id.Value;
+
+			WorkMonthRequest workrequest = WorkMonthRequest.fromQuery(query);
+			if (workrequest == null || !workrequest.supervisor.HasValue || hoursstr == null)
 			{
-				writeResult(context, false, "missing required field(s)");
+				writeResult(context, false, "missing or misformatted required field(s)");
 				return;
 			}
-			int supid, empid, year, month;
-			if (!int.TryParse(supidstr, out supid) || !id.HasValue || !int.TryParse(yearstr, out year) || !int.TryParse(monthstr, out month))
-			{
-				writeResult(context, false, "misformatted required field(s)");
-				return;
-			}
-			empid = id.Value;
+			workrequest.employee = id.Value;
 
 			Dictionary<int, double[]> hoursById = null;
 			try
@@ -333,12 +344,11 @@ namespace GrantApplication
 			//}
 			finally { }
 
-			WorkMonthRequest workrequest = new WorkMonthRequest(empid, supid, month, year, hoursById.Keys.ToArray());
-			Dictionary<string, int> success = updateHours(workrequest, hoursById, supid);
+			Dictionary<string, int> success = updateHours(workrequest, hoursById);
 			writeResult(context, true, success);
 		}
 
-		private Dictionary<string, int> updateHours(WorkMonthRequest workrequest, Dictionary<int, double[]> hours, int supervisor)
+		private Dictionary<string, int> updateHours(WorkMonthRequest workrequest, Dictionary<int, double[]> hours)
 		{
 			int monthlength = DateTime.DaysInMonth(workrequest.year, workrequest.month + 1);
 
@@ -356,7 +366,7 @@ namespace GrantApplication
 						properLengthMonth.ForEach((time, dayIndex) =>
 						{
 							int day = dayIndex + 1;
-							results[addOrUpdateEntry(conn, workrequest, grantid, supervisor, day, time, oldhours[dayIndex])]++;
+							results[addOrUpdateEntry(conn, workrequest, grantid, day, time, oldhours[dayIndex])]++;
 						});
 					}
 					else
@@ -364,7 +374,7 @@ namespace GrantApplication
 						properLengthMonth.ForEach((time, dayIndex) =>
 						{
 							int day = dayIndex + 1;
-							results[addOrUpdateEntry(conn, workrequest, grantid, supervisor, day, time, null)]++;
+							results[addOrUpdateEntry(conn, workrequest, grantid, day, time, null)]++;
 						});
 					}
 				});
@@ -374,9 +384,9 @@ namespace GrantApplication
 
 		// decide whether to addNewTimeEntry, updateTimeEntry, or neither, and deal with the weirdness of calling them
 		// incidentally, neither one will set the supervisor id, but we're accepting it as an argument for future proofiness
-		private string addOrUpdateEntry(OleDbConnection conn, WorkMonthRequest req, int grant, int supervisor, int day, double time, TimeEntry oldentry)
+		private string addOrUpdateEntry(OleDbConnection conn, WorkMonthRequest req, int grant, int day, double time, TimeEntry oldentry)
 		{
-			// No, seriously.  addNewTimeEntry() and updateTimeEntry() unconditionally the connection they're passed.
+			// No, seriously.  addNewTimeEntry() and updateTimeEntry() unconditionally open the connection they're passed.
 			// Methods in Default.aspx.cs that call them unconditionally close them first, but we're a little more careful.
 			// Why is all of this being done?  I have no idea.
 			if (conn.State == ConnectionState.Open)
@@ -387,7 +397,7 @@ namespace GrantApplication
 			{
 				if (time != 0)
 				{
-					TimeEntry newentry = new TimeEntry(time, grant, req.employee, supervisor, req.month, day, req.year);
+					TimeEntry newentry = new TimeEntry(time, grant, req.employee.Value, req.supervisor.Value, req.month, day, req.year);
 					_Default.addNewTimeEntry(newentry, new OleDbCommand(), conn);
 					return "added";
 				}
@@ -399,6 +409,34 @@ namespace GrantApplication
 				return "updated";
 			}
 			return "unchanged";
+		}
+
+		private void sendRequest(HttpContext context, int? id, NameValueCollection query)
+		{
+			WorkMonthRequest request = WorkMonthRequest.fromQuery(query);
+			if (request == null || !request.supervisor.HasValue || request.grantids.Length != 1)
+			{
+				writeResult(context, false, "missing or misformatted required field(s)");
+				return;
+			}
+			request.employee = id;
+
+			Dictionary<string, TimeEntry[]> entries = request.getTimeEntries(new string[] { });
+			var details = OleDBHelper.withConnection(conn => new {
+				emp = OleDBHelper.query(conn, "SELECT * FROM EmployeeList WHERE ID = " + request.employee.Value, Employee.fromRow).Single(),
+				grants = OleDBHelper.query(conn, "SELECT * FROM GrantInfo WHERE ID IN "+ OleDBHelper.sqlInArrayParams(request.grantids)
+						, Grant.fromRow
+						, request.grantids.Select(a=>a.ToString()).ToArray())
+			});
+			Employee emp = details.emp;
+			IEnumerable<Grant> grants = details.grants;
+				
+
+			_Default.AssignSupervisorStateless(request.supervisor.Value, request.grantids[0], request.employee.Value,
+				entries.SelectMany(kv => kv.Value).Where(entry => entry != null).ToList());
+
+			_Default.sendOffEmailStateless(new int[] { request.supervisor.Value }
+				, request.employee.Value, new DateTime(request.year, request.month + 1, 1), grants.ToList(), emp);
 		}
 
 		public void doLogin(HttpContext context, String empId, String pass)

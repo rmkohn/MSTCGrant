@@ -797,31 +797,35 @@ namespace GrantApplication
         public static TimeEntry[] AssignSupervisor(int supID, int grantID, int empID)
         {
             if (HttpContext.Current.Session["TimeEntries"] != null)
-            {
-                List<TimeEntry> teS = (List<TimeEntry>)HttpContext.Current.Session["TimeEntries"];
-                var theOnes = teS.Where(te => te.empID == empID && te.grantID == grantID).ToList();
-                if (theOnes != null)
-                {
-                    OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
-                    conn.Open();
-                    OleDbCommand comm = new OleDbCommand();
-                    comm.Connection = conn;
-                    comm.CommandType = CommandType.Text;
-                     
-                    foreach (TimeEntry t in theOnes)
-                    {
-                        t.supervisorID = supID;
-                        comm.CommandText = "update TimeEntry set SupervisorID=" + supID.ToString() + " where ID=" + t.ID.ToString();
-                        comm.ExecuteNonQuery();
-                    }
-                    HttpContext.Current.Session["TimeEntries"] = teS;
-                    conn.Close();
-                }
-                
-                return teS.ToArray();
+			{
+				List<TimeEntry> teS = (List<TimeEntry>)HttpContext.Current.Session["TimeEntries"];
+				var theOnes = teS.Where(te => te.empID == empID && te.grantID == grantID).ToList();
+				if (theOnes != null)
+				{
+					AssignSupervisorStateless(supID, grantID, empID, theOnes);
+					HttpContext.Current.Session["TimeEntries"] = teS;
+				}
+				return teS.ToArray();
             }
             return null;
         }
+
+		public static void AssignSupervisorStateless(int supID, int grantID, int empID, List<TimeEntry> theOnes)
+		{
+			OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
+			conn.Open();
+			OleDbCommand comm = new OleDbCommand();
+			comm.Connection = conn;
+			comm.CommandType = CommandType.Text;
+
+			foreach (TimeEntry t in theOnes)
+			{
+				t.supervisorID = supID;
+				comm.CommandText = "update TimeEntry set SupervisorID=" + supID.ToString() + " where ID=" + t.ID.ToString();
+				comm.ExecuteNonQuery();
+			}
+			conn.Close();
+		}
 
         [System.Web.Services.WebMethod(true)]
         [System.Web.Script.Services.ScriptMethod]
@@ -1180,10 +1184,15 @@ namespace GrantApplication
         [System.Web.Script.Services.ScriptMethod]
         public static bool sendOffEmail(int[] supIDs, int empID, DateTime selDate)
         {
-            OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
             List<Grant> selGrants = (List<Grant>)HttpContext.Current.Session["SelectedGrants"];
-            List<Employee> emps = (List<Employee>)HttpContext.Current.Session["CurrentEmployeeList"];
-            var emp = emps.Where(e => e.ID == empID).SingleOrDefault();
+			List<Employee> emps = (List<Employee>)HttpContext.Current.Session["CurrentEmployeeList"];
+			var emp = emps.Where(e => e.ID == empID).SingleOrDefault();
+			return sendOffEmailStateless(supIDs, empID, selDate, selGrants, emp);
+		}
+
+		public static bool sendOffEmailStateless(int[] supIDs, int empID, DateTime selDate, List<Grant> selGrants, Employee emp)
+		{
+			OleDbConnection conn = new OleDbConnection(ConfigurationManager.ConnectionStrings["AccessConnectionString"].ConnectionString);
             List<Employee> sups = new List<Employee>();
 
             for (int ix = 0; ix < supIDs.Count(); ix++)
