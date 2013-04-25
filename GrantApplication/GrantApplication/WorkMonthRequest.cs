@@ -51,7 +51,7 @@ class WorkMonthRequest
 	{
 		GrantMonth first = months.FirstOrDefault();
 		if (first == null)
-			return null;
+			return new WorkMonthRequest(-1, -1, -1, -1, new int[] { }, new GrantMonth[] { }.AsEnumerable());
 		IEnumerable<int> ids = months.Select(month => month.grantID);
 		if (extraids != null)
 			ids = ids.Concat(extraids);
