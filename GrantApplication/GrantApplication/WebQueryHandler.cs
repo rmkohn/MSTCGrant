@@ -207,7 +207,7 @@ namespace GrantApplication
 					hours      = times,
 					month      = month.workMonth,
 					year       = month.workYear,
-					status     = month.curStatus,
+					status     = Enum.GetName(typeof(GrantMonth.status), month.curStatus),
 					id         = month.ID,
 					supervisor = supervisor,
 					employee   = employee,
