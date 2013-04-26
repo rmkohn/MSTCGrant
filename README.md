@@ -12,8 +12,9 @@ The commands available so far are
 - [`logout`](#logout)
 - [`debug`](#debug)
 - [`email`](#email) `(employee grant year month | id)`
-- [`updatehours`](#updatehours) `employee year month hours`
+- [`updatehours`](#updatehours) `supervisor year month hours`
 - [`listallgrants`](#listallgrants)
+- [`sendrequest`](#sendrequest) `year month grant supervisor`
 
 ----
 
@@ -97,3 +98,9 @@ But none of that actually exists yet, so it just logs you in as whomever's ID yo
 > No arguments.
 
 > Return information about every grant in the database.  This is intended to provide a list of grants for the time-entry app.
+
+<div id="sendrequest"/>
+#### sendrequest
+> Arguments: year, month, grant, supervisor
+
+> Send an "approval required" email.  You still need to have a supervisor ID from somewhere, and I'm not yet sure how the web app decides which ones to show you.

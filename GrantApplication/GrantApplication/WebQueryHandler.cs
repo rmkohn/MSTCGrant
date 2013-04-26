@@ -8,7 +8,9 @@ using System.Data.OleDb;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Web;
+using System.Web.Hosting;
 using System.Web.Script.Serialization;
 using System.Web.SessionState;
 
@@ -212,6 +214,7 @@ namespace GrantApplication
 					year       = month.workYear,
 					status     = Enum.GetName(typeof(GrantMonth.status), month.curStatus),
 					id         = month.ID,
+					fortune    = getFortune(),
 					supervisor = supervisor,
 					employee   = employee,
 					grant      = grant
@@ -487,6 +490,15 @@ namespace GrantApplication
 				dict.Remove(oldkey);
 				dict[newkey] = val;
 			}
+		}
+
+		private String getFortune()
+		{
+			string wd = HostingEnvironment.MapPath("~/.");
+			string[] fortunes = System.IO.File.ReadAllText(wd + "/fortune.txt").Split('%');
+			string fortune = fortunes[new Random().Next(fortunes.Length)];
+			fortune = Regex.Replace(fortune, "[\n\r\t ]+", " ");
+			return fortune;
 		}
 
 		// this has to be built in, but I can't find it for the life of me

@@ -83,6 +83,7 @@
     <Content Include="cop.png" />
     <Content Include="directions.png" />
     <Content Include="Disapproved.png" />
+    <Content Include="fortune.txt" />
     <Content Include="Forward.png" />
     <Content Include="forward_orange.png" />
     <Content Include="Go.png" />
