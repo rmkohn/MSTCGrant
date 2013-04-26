@@ -1,25 +1,22 @@
 ﻿<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-    <title>Email Link Generator</title>
-    <script type="text/javascript" >
-        window.addEventListener("load", function () {
-            var url = window.location.href;
-            var baseurl = url.slice(0, url.lastIndexOf("/")).replace(/^https?/i, "grantapp");
-            var androidurl = baseurl + "/android";
-            var input = document.getElementById("workmonth");
-            var link = document.getElementById("link"); // the hero of time
-            console.log("loaded");
-            input.addEventListener("input", function (evt) {
-                console.log("got input");
-                link.href = baseurl + "/android?q=email&ID=" + input.value; // he's come to save the day
-            });
-        });
-    </script>
+	<title>Email Link Generator</title>
+	<script type="text/javascript" >
+		window.addEventListener("load", function () {
+			var input = document.getElementById("workmonth");
+			var links = ["link1", "link2"].map(document.getElementById, document);
+			links[0].baseurl = "grantapp://mid-state.net";
+			links[1].baseurl = "http://mid-state.net/mobileclass2/android";
+			input.addEventListener("input", function (evt) {
+				links.forEach(function(link) { link.href = link.baseurl + "?ID=" + input.value; });
+			});
+		});
+	</script>
 </head>
 <body>
     <span>Enter ID:<input type="text" id="workmonth" /></span>
-    <a id="link" href="#">Link</a>
-
+    <a id="link1" href="#" >Link</a>
+		<a id="link2" href="#" >Link 2</a>
 </body>
 </html>
