@@ -42,7 +42,12 @@ namespace GrantApplication
 			context.Response.ContentType = "text/plain";
 			NameValueCollection query = context.Request.QueryString;
 			String command = (String)query["q"];
-			if (command == "login")
+			if (command == null || command == "")
+			{
+				context.Response.Write("This link must be opened using the Grant Approval App.");
+				return;
+			}
+			else if (command == "login")
 			{
 				doLogin(context, query["id"], query["pass"]);
 			}
