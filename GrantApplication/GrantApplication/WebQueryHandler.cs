@@ -91,6 +91,9 @@ namespace GrantApplication
 						case "sendrequest":
 							sendRequest(context, id, query);
 							break;
+						case "listsupervisors":
+							getAllSupervisors(context, id, query);
+							break;
 						case "logout":
 							context.Session.Abandon();
 							writeResult(context, true, "Logged out successfully");
@@ -442,7 +445,15 @@ namespace GrantApplication
 			}
 		}
 
-		public void doLogin(HttpContext context, String empId, String pass)
+		private void getAllSupervisors(HttpContext context, int? id, NameValueCollection query)
+		{
+			IEnumerable<SafeEmployee> supervisors = OleDBHelper.query(
+				"SELECT * FROM EmployeeList WHERE manager = true AND registered = true"
+				, SafeEmployee.fromRow);
+			writeResult(context, true, supervisors);
+		}
+
+		public void doLogin(HttpContext context, string empId, string pass)
 		{
 			empId = (empId != null) ? empId : "";
 			IEnumerable<Employee> emps = OleDBHelper.query<Employee>(
