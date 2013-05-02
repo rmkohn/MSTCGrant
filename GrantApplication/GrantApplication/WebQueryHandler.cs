@@ -449,7 +449,7 @@ namespace GrantApplication
 		{
 			IEnumerable<SafeEmployee> supervisors = OleDBHelper.query(
 				"SELECT * FROM EmployeeList WHERE manager = true AND registered = true"
-				, SafeEmployee.fromRow);
+				, SafeEmployee.fromRow).GroupBy(emp => emp.firstname + emp.lastname).Select(emps => emps.First());
 			writeResult(context, true, supervisors);
 		}
 

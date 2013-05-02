@@ -15,6 +15,7 @@ The commands available so far are
 - [`updatehours`](#updatehours) `supervisor year month hours`
 - [`listallgrants`](#listallgrants)
 - [`sendrequest`](#sendrequest) `year month grant supervisor`
+- [`listsupervisors`](#listsupervisors)
 
 ----
 
@@ -104,3 +105,9 @@ But none of that actually exists yet, so it just logs you in as whomever's ID yo
 > Arguments: year, month, grant, supervisor
 
 > Send an "approval required" email.  You still need to have a supervisor ID from somewhere, and I'm not yet sure how the web app decides which ones to show you.
+
+<div id="listsupervisors"/>
+#### listsupervisors
+> No arguments.  
+
+> Get a list of all registered supervisors in the database.  This is slightly different behavior from the web application, which gets all supervisors, registered or not.  
