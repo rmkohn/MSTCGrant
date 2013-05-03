@@ -1473,8 +1473,9 @@ namespace GrantApplication
             sb.Append(email);
             email = "To see the grant time entries, please browse to: <p />";
             sb.Append(email);
-            email = Globals.ApplicationRoot + "Default.aspx?approval=true&ID=" + sup.ID.ToString() + "&Employee=" + emp.ID.ToString() + "&month=" + (dt.Month - 1).ToString() + "&Year=" + dt.Year.ToString() + "&GrantID=" + grantID.ToString();
-            sb.Append(email);
+            string url = Globals.ApplicationRoot + "Default.aspx?approval=true&ID=" + sup.ID.ToString() + "&Employee=" + emp.ID.ToString() + "&month=" + (dt.Month - 1).ToString() + "&Year=" + dt.Year.ToString() + "&GrantID=" + grantID.ToString();
+			email = "<a href=\"" + url + "\">" + url + "</a>";
+			sb.Append(email);
             sb.Append("<p /><h5>Thanks, the Grant Administrator</h5></body></html>");
 
             return sb.ToString();
