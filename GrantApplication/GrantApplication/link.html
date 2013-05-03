@@ -1,22 +1,33 @@
 ﻿<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
+	<meta name="viewport" content="width=device-width" />
 	<title>Email Link Generator</title>
 	<script type="text/javascript" >
 		window.addEventListener("load", function () {
 			var input = document.getElementById("workmonth");
-			var links = ["link1", "link2"].map(document.getElementById, document);
-			links[0].baseurl = "grantapp://mid-state.net";
-			links[1].baseurl = "http://mid-state.net/mobileclass2/android";
-			input.addEventListener("input", function (evt) {
-				links.forEach(function(link) { link.href = link.baseurl + "?ID=" + input.value; });
-			});
+			var links = document.getElementsByTagName("a");
+			links.forEach = Array.prototype.forEach;
+			links.forEach(function(link) { link.baseurl = link.href; link.origtext = link.innerText; });
+			var update = function (evt) {
+				var unlink = function(link) {
+					link.href = "#";
+					link.innerText = link.origtext;
+				}
+				var makelink = function(link) {
+					link.href = link.baseurl + "?ID=" + input.value;
+					link.innerText = link.href;
+				}
+				links.forEach(input.value == "" ? unlink : makelink);
+			};
+			input.addEventListener("input", update);
+			update();
 		});
 	</script>
 </head>
-<body>
-    <span>Enter ID:<input type="text" id="workmonth" /></span>
-    <a id="link1" href="#" >Link</a>
-		<a id="link2" href="#" >Link 2</a>
+<body style="font-size:xx-large">
+	<p> Enter ID:<input type="number" id="workmonth" /> </p>
+	<p> <br/> <a id="link1" href="grantapp://mid-state.net" >grantapp:// link</a> </p>
+	<p> <a id="link2" href="http://mid-state.net/mobileclass2/android" >mid-state.net link</a> </p>
 </body>
 </html>
