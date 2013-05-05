@@ -419,6 +419,17 @@ namespace GrantApplication
 			}
 			request.employee = id;
 
+			GrantMonth oldgm = request.grantMonths.FirstOrDefault();
+			if (oldgm != null)
+			{
+				GrantMonth.status status = (GrantMonth.status)oldgm.curStatus;
+				if (status != GrantMonth.status.New && status != GrantMonth.status.disapproved)
+				{
+					writeResult(context, false, "request is already " + Enum.GetName(typeof(GrantMonth.status), status));
+					return;
+				}
+			}
+
 			Dictionary<string, TimeEntry[]> entries = request.getTimeEntries(new string[] { });
 			var details = OleDBHelper.withConnection(conn => new {
 				emp = OleDBHelper.query(conn, "SELECT * FROM EmployeeList WHERE ID = " + request.employee.Value, Employee.fromRow).Single(),
