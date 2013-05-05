@@ -53,7 +53,6 @@ namespace GrantApplication
 			}
 			else if (command == "email")
 			{
-
 				doEmailGrantId(context, query);
 			}
 			else
@@ -222,7 +221,7 @@ namespace GrantApplication
 					year       = month.workYear,
 					status     = Enum.GetName(typeof(GrantMonth.status), month.curStatus),
 					id         = month.ID,
-					fortune    = getFortune(),
+					//fortune    = getFortune(),
 					supervisor = supervisor,
 					employee   = employee,
 					grant      = grant
