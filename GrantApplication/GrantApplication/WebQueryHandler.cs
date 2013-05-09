@@ -465,13 +465,20 @@ namespace GrantApplication
 
 		public void doLogin(HttpContext context, string empId, string pass)
 		{
-			empId = (empId != null) ? empId : "";
-			IEnumerable<Employee> emps = OleDBHelper.query<Employee>(
-				"SELECT * FROM EmployeeList WHERE registered = true AND EmployeeNum = ?",
-				Employee.fromRow,
-				empId
-			);
-			Employee emp = emps.FirstOrDefault();
+            if (empId == null || pass == null) {
+                writeResult(context, false, "missing required field");
+                return;
+            }
+            Employee emp = OleDBHelper.query<Employee>(
+                "SELECT * FROM EmployeeList WHERE registered = true AND EmployeeNum = ?",
+                Employee.fromRow,
+                empId
+            ).SingleOrDefault();
+            if (!emp.registered)
+            {
+                writeResult(context, false, "employee not registered");
+                return;
+            }
 			if (!Employee.TestPassword(emp, context.Request.QueryString["pass"]))
 			{
 				writeResult(context, false, "Wrong ID or password");
