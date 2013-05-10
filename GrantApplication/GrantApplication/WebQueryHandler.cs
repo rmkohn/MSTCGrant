@@ -264,12 +264,13 @@ namespace GrantApplication
 
 			// this is a terrible thing to be doing
 			// so, you know what?  let's not do it
-			//int? idFromEmail = (int?)context.Session["WorkMonthID"];
-			//if (query["id"] == null && idFromEmail.HasValue)
-			//{
-			//	query = new NameValueCollection(query);
-			//	query["id"] = idFromEmail.ToString();
-			//}
+			// that's what I'd like to say, but for now it has to stay in
+			int? idFromEmail = (int?)context.Session["WorkMonthID"];
+			if (query["id"] == null && idFromEmail.HasValue)
+			{
+				query = new NameValueCollection(query);
+				query["id"] = idFromEmail.ToString();
+			}
 
 			WorkMonthRequest queryRequest = WorkMonthRequest.fromQuery(query);
 			if (queryRequest == null || queryRequest.grantMonths == null || queryRequest.grantMonths.Count() == 0)
