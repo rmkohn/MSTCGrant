@@ -263,21 +263,23 @@ namespace GrantApplication
 			}
 
 			// this is a terrible thing to be doing
-			int? idFromEmail = (int?)context.Session["WorkMonthID"];
-			if (query["id"] == null && idFromEmail.HasValue)
-			{
-				query = new NameValueCollection(query);
-				query["id"] = idFromEmail.ToString();
-			}
+			// so, you know what?  let's not do it
+			//int? idFromEmail = (int?)context.Session["WorkMonthID"];
+			//if (query["id"] == null && idFromEmail.HasValue)
+			//{
+			//	query = new NameValueCollection(query);
+			//	query["id"] = idFromEmail.ToString();
+			//}
 
-			IEnumerable<GrantMonth> tmpGm = WorkMonthRequest.fromQuery(query).grantMonths;
-			if (tmpGm == null || tmpGm.Count() == 0)
+			WorkMonthRequest queryRequest = WorkMonthRequest.fromQuery(query);
+			if (queryRequest == null || queryRequest.grantMonths == null || queryRequest.grantMonths.Count() == 0)
 			{
 				writeResult(context, false, "Missing required field or no such entry");
 				return;
 			}
 			else
 			{
+				IEnumerable<GrantMonth> tmpGm = WorkMonthRequest.fromQuery(query).grantMonths;
 				// It seems silly not to support both input types, but we have to have the non-grant/leave WorkMonths for approveOrDisapprove()
 				// and have no way of ensuring they're included (save for some inner join shenanigans)
 				// So instead, let's get one of the GrantMonths we grabbed already and use it to collect the stragglers
@@ -286,7 +288,7 @@ namespace GrantApplication
 				GrantMonth[] workmonths = tmpGm.Concat(extraGm).GroupBy(month => month.ID).Select(months => months.First()).ToArray();
 				// ^ union() would be better but doesn't support lambdas; this is the stackoverflow-approved substitute
 				
-				string reason = query["reason"];
+				string reason = query["comment"];
 				reason = reason != null ? reason : "No reason given.";
 				var result = OleDBHelper.withConnection(conn =>
 				{
@@ -334,6 +336,11 @@ namespace GrantApplication
 					kv => WorkMonthRequest.parseQueryGrant(kv.Key),
 					kv => kv.Value
 				);
+			}
+			catch (Exception)
+			{
+				writeResult(context, false, "unable to parse hours");
+				return;
 			}
 			//catch (Exception e)
 			//{
