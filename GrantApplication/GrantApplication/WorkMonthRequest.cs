@@ -108,7 +108,7 @@ class WorkMonthRequest
 			{
 				case "non-grant": return Globals.GrantID_NonGrant;
 				case "leave": return Globals.GrantID_Leave;
-				default: return -1;
+				default: throw new ArgumentException("unknown grant name");
 			}
 		}
 		return ret;

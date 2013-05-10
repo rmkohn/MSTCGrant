@@ -235,11 +235,12 @@ namespace GrantApplication
 			bool extras = query["withextras"] == "true";
 			string[] grants = extras ? extragrants : noextragrants;
 			WorkMonthRequest months = WorkMonthRequest.fromQuery(query);
-			if (months == null || !months.employee.HasValue || months.grantids.Length == 0)
+			if (months == null || months.grantids.Length == 0)
 			{
-				writeResult(context, false, "Missing employee id or grant number or date");
+				writeResult(context, false, "Missing grant number or date");
 				return;
 			}
+			months.employee = id;
 			Dictionary<string, IEnumerable<double>> groupTimes = months.getTimes(grants);
 			if (query["grant"] != null)
 			{
