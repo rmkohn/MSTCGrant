@@ -521,7 +521,8 @@ namespace GrantApplication
 			var output = new
 			{
 				success = success,
-				message = message
+				message = message,
+				version = "1.0"
 			};
 #if DEBUG
 			context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(output)));
