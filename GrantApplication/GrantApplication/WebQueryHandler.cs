@@ -241,15 +241,30 @@ namespace GrantApplication
 				return;
 			}
 			months.employee = id;
-			Dictionary<string, IEnumerable<double>> groupTimes = months.getTimes(grants);
-			if (query["grant"] != null)
+			Dictionary<string, object> groupTimes = months.getTimes(grants)
+				.ToDictionary(kv => kv.Key, kv => (object)kv.Value.ToArray());
+			if (query["grant"] != null || extras)
 			{
 				if (extras || query["grant"].Contains("non-grant"))
 					renameIfExists(groupTimes, Globals.GrantID_NonGrant.ToString(), "non-grant");
 				if (extras || query["grant"].Contains("leave"))
 					renameIfExists(groupTimes, Globals.GrantID_Leave.ToString(), "leave");
 			}
-					
+			if (query["withstatus"] == "true")
+			{
+				Dictionary<string, string> status = months.grantids.Where(
+					grant => !Globals.GrantID_AllSpecial.Contains(grant))
+				.ToDictionary(
+					grant => WorkMonthRequest.getGrantName(grant),
+					grant =>
+					{
+						GrantMonth rightmonth = months.grantMonths.Where(month => month.grantID == grant).SingleOrDefault();
+						return Enum.GetName(typeof(GrantMonth.status), (rightmonth == null)
+							? (int)GrantMonth.status.New
+							: rightmonth.curStatus);
+					});
+				groupTimes["status"] = status;
+			}
 			writeResult(context, true, groupTimes);
 		}
 

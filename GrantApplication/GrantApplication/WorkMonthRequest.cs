@@ -114,6 +114,16 @@ class WorkMonthRequest
 		return ret;
 	}
 
+	public static string getGrantName(int grantid)
+	{
+		switch (grantid)
+		{
+			case Globals.GrantID_NonGrant: return "non-grant";
+			case Globals.GrantID_Leave: return "leave";
+			default: return grantid.ToString();
+		}
+	}
+
 	// return a GrantMonth object from a WorkMonth ID
 	private static IEnumerable<GrantMonth> getGrantMonths(string[] workmonthIDs)
 	{

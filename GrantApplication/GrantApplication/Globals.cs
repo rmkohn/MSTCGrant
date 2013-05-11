@@ -14,5 +14,6 @@ namespace GrantApplication
 		public const int GrantID_Leave = 53;
 		public const int GrantID_Placeholder = 28;
 		public const string MarieEmpNum = "14805010";
+		public static int[] GrantID_AllSpecial = { GrantID_NonGrant, GrantID_Leave, GrantID_Placeholder };
 	}
 }
