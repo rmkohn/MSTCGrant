@@ -158,18 +158,35 @@ namespace GrantApplication
 			}
 			string sqlquery = "SELECT WorkMonth.* FROM WorkMonth, GrantInfo WHERE GrantInfo.ID = WorkMonth.GrantID"
 				//string sqlquery = "SELECT WorkMonth.* FROM WorkMonth"
-							+ " AND SupervisorID = " + id;
+							+ " AND (EmpID = " + id + " OR SupervisorID = " + id + ")";
 			//string[] sqlkeys = new string[] { "GrantInfo.GrantNumber", "EmployeeList.EmployeeNum", "WorkMonth.Status" };
-			string[] sqlkeys = { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.Status" };
-			string[] sqlvals = { query["grant"], query["employee"], status };
+			string[] sqlkeys = { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.SupervisorID", "WorkMonth.Status" };
+			string[] sqlvals = { query["grant"], query["employee"], query["supervisor"], status };
 			IEnumerable<string> sqlparams;
 			sqlquery = OleDBHelper.appendConditions(sqlquery, sqlkeys, sqlvals, out sqlparams);
-			IEnumerable<GrantMonth> gm = OleDBHelper.query(
-				sqlquery,
-				GrantMonth.fromRow,
-				sqlparams.ToArray()
-			);
-			return new Result(true, gm);
+			return OleDBHelper.withConnection(conn => {
+				IEnumerable<GrantMonth> gm = OleDBHelper.query(conn,
+					sqlquery,
+					GrantMonth.fromRow,
+					sqlparams.ToArray()
+				);
+				IEnumerable<string> empids = gm.SelectMany(month => new int[] { month.EmpID, month.supervisorID })
+					.Distinct().Select(eid=>eid.ToString());
+				Dictionary<int, SafeEmployee> empnames = OleDBHelper.query(conn,
+					"SELECT * FROM EmployeeList WHERE ID IN " + OleDBHelper.sqlInArrayParams(empids)
+					, SafeEmployee.fromRow
+					, empids.ToArray()).ToDictionary(emp => emp.id);
+				return new Result(true, gm.Select(month => new
+				{
+					month = month.workMonth,
+					year = month.workYear,
+					status = Enum.GetName(typeof(GrantMonth.status), month.curStatus),
+					id = month.ID,
+					supervisor = empnames[month.supervisorID],
+					employee = empnames[month.EmpID],
+					grant = month.grantID
+				}));
+			});
 		}
 
 		private Result doEmailGrantId(HttpContext context, NameValueCollection query)
