@@ -483,14 +483,14 @@ namespace GrantApplication
                 Employee.fromRow,
                 empId
             ).SingleOrDefault();
+			if (emp == null || !Employee.TestPassword(emp, context.Request.QueryString["pass"]))
+			{
+				return new Result(false, "Wrong ID or password");
+			}
             if (!emp.registered)
             {
                 return new Result(false, "employee not registered");
             }
-			if (!Employee.TestPassword(emp, context.Request.QueryString["pass"]))
-			{
-				return new Result(false, "Wrong ID or password");
-			}
 			else
 			{
 				context.Session["ID"] = emp.ID;
