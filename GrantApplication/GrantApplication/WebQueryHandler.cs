@@ -38,92 +38,93 @@ namespace GrantApplication
 
 		public void ProcessRequest(HttpContext context)
 		{
-		//	context.Response.ContentType = "text/json";
 			context.Response.ContentType = "text/plain";
-			NameValueCollection query = context.Request.QueryString;
-			String command = (String)query["q"];
-			if (command == null || command == "")
-			{
+			Result result = getQueryResult(context);
+			if (result == null)
 				context.Response.Write("This link must be opened using the Grant Approval App.");
-				return;
-			}
-			else if (command == "login")
-			{
-				doLogin(context, query["id"], query["pass"]);
-			}
-			else if (command == "email")
-			{
-				doEmailGrantId(context, query);
-			}
 			else
 			{
-				int? id = (int?)context.Session["ID"];
-				if (!id.HasValue)
+				JavaScriptSerializer s = new JavaScriptSerializer();
+				var output = new
 				{
-					writeResult(context, false, "Invalid Session ID");
-				}
-				else
-				{
-					switch (command)
-					{
-						case "listgrants":
-							listgrants(context, id, query);
-							break;
-						case "listallgrants":
-							listallgrants(context, id, query);
-							break;
-						case "listrequests":
-							listrequests(context, id, query);
-							break;
-						case "viewrequest":
-							viewrequest(context, id, query);
-							break;
-						case "listemployees":
-							listemployees(context, id, query);
-							break;
-						case "approve":
-							sendApproval(context, id, query);
-							break;
-						case "updatehours":
-							doUpdateHours(context, id, query);
-							break;
-						case "sendrequest":
-							sendRequest(context, id, query);
-							break;
-						case "listsupervisors":
-							getAllSupervisors(context, id, query);
-							break;
-						case "logout":
-							context.Session.Abandon();
-							writeResult(context, true, "Logged out successfully");
-							break;
-						case "debug":
-							Dictionary<string, object> sesh = new Dictionary<string, object>();
-							foreach (String key in context.Session.Keys)
-							{
-								sesh.Add(key, context.Session[key]);
-							}
-							writeResult(context, true, sesh);
-							break;
-						default:
-							writeResult(context, false, "Unrecognized request");
-							break;
-					}
-				}
+					success = result.success,
+					message = result.message,
+					version = "1.0"
+				};
+#if DEBUG
+				context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(output)));
+#else
+					context.Response.Write(s.Serialize(output));
+#endif
 			}
 		}
 
-		private void listemployees(HttpContext context, int? id, NameValueCollection query)
+		private Result getQueryResult(HttpContext context)
+		{
+			NameValueCollection query = context.Request.QueryString;
+			int? id = (int?)context.Session["ID"];
+			string command = (string)query["q"];
+			switch (command)
+			{
+				case "login":
+					return doLogin(context, query["id"], query["pass"]);
+				case "email":
+					return doEmailGrantId(context, query);
+				case "listgrants":
+					return testId(id, query, listgrants);
+				case "listallgrants":
+					return testId(id, query, listallgrants);
+				case "listrequests":
+					return testId(id, query, listrequests);
+				case "viewrequest":
+					return testId(id, query, viewrequest);
+				case "listemployees":
+					return testId(id, query, listemployees);
+				case "approve": // plz fix me
+					if (id.HasValue) return sendApproval(id.Value, query, context);
+					else return testId(id, query, null);
+				case "updatehours":
+					return testId(id, query, doUpdateHours);
+				case "sendrequest":
+					return testId(id, query, sendRequest);
+				case "listsupervisors":
+					return testId(id, query, getAllSupervisors);
+				case "logout":
+					context.Session.Abandon();
+					return new Result(true, "Logged out successfully");
+				case "debug":
+					Dictionary<string, object> sesh = new Dictionary<string, object>();
+					foreach (String key in context.Session.Keys)
+					{
+						sesh.Add(key, context.Session[key]);
+					}
+					return new Result(true, sesh);
+				case "":
+					return null;
+				case null:
+					return null;
+				default:
+					return new Result(false, "Unrecognized request");
+			}
+		}
+
+		private Result testId(int? id, NameValueCollection query, Func<int, NameValueCollection, Result> fn)
+		{
+			if (id.HasValue) return fn(id.Value, query);
+			else return new Result(false, "Invalid Session ID");
+		}
+
+		private Result listemployees(int id, NameValueCollection query)
 		{
 			IEnumerable<SafeEmployee> defaultemployees = OleDBHelper.query(
 				"SELECT * FROM EmployeeList"
 				+ " WHERE DefaultSupervisor = " + id
 				, SafeEmployee.fromRow
 			);
-			writeResult(context, true, defaultemployees);
+			return new Result(true, defaultemployees);
 		}
 
-		private void listallgrants(HttpContext context, int? id, NameValueCollection query)
+		private Result listallgrants(int id, NameValueCollection query)
 		{
 			IEnumerable<Grant> grants = OleDBHelper.query(
 				"SELECT GrantInfo.* FROM GrantInfo"
@@ -133,10 +134,10 @@ namespace GrantApplication
 				+ Globals.GrantID_Placeholder + ")"
 				, Grant.fromRow
 			);
-			writeResult(context, true, grants);
+			return new Result(true, grants);
 		}
 
-		private void listgrants(HttpContext context, int? id, NameValueCollection query)
+		private Result listgrants(int id, NameValueCollection query)
 		{
 			IEnumerable<Grant> grants = OleDBHelper.query(
 				 "SELECT GrantInfo.* FROM GrantInfo, EmployeeList"
@@ -146,10 +147,10 @@ namespace GrantApplication
 				, Grant.fromRow
 				, id.ToString()
 			);
-			writeResult(context, true, grants);
+			return new Result(true, grants);
 		}
 
-		private void listrequests(HttpContext context, int? id, NameValueCollection query)
+		private Result listrequests(int id, NameValueCollection query)
 		{
 			string status = null;
 			try
@@ -159,8 +160,7 @@ namespace GrantApplication
 			catch (ArgumentNullException) { }
 			catch (ArgumentException)
 			{
-				writeResult(context, false, query["status"] + " is not a valid status");
-				return;
+				return new Result(false, query["status"] + " is not a valid status");
 			}
 			string sqlquery = "SELECT WorkMonth.* FROM WorkMonth, GrantInfo WHERE GrantInfo.ID = WorkMonth.GrantID"
 				//string sqlquery = "SELECT WorkMonth.* FROM WorkMonth"
@@ -175,27 +175,25 @@ namespace GrantApplication
 				GrantMonth.fromRow,
 				sqlparams.ToArray()
 			);
-			writeResult(context, true, gm);
+			return new Result(true, gm);
 		}
 
-		private void doEmailGrantId(HttpContext context, NameValueCollection query)
+		private Result doEmailGrantId(HttpContext context, NameValueCollection query)
 		{
 			WorkMonthRequest workmonth = WorkMonthRequest.fromQuery(query);
 			if (workmonth == null)
 			{
-				writeResult(context, false, "Missing one or more required fields");
-				return;
+				return new Result(false, "Missing one or more required fields");
 			}
 			IEnumerable<GrantMonth> months = workmonth.grantMonths;
 			if (months == null || months.Count() > 1)
 			{
-				writeResult(context, false, "Missing grant id from email");
-				return;
+				return new Result(false, "Missing grant id from email");
 			}
 			GrantMonth month = months.SingleOrDefault();
 			if (month == null)
 			{
-				writeResult(context, false, "No such grant");
+				return new Result(false, "No such grant");
 			}
 			else
 			{
@@ -226,23 +224,22 @@ namespace GrantApplication
 					employee   = employee,
 					grant      = grant
 				};
-				writeResult(context, true, result);
+				return new Result(true, result);
 			}
 		}
 
-		private void viewrequest(HttpContext context, int? id, NameValueCollection query)
+		private Result viewrequest(int id, NameValueCollection query)
 		{
 			bool extras = query["withextras"] == "true";
 			string[] grants = extras ? extragrants : noextragrants;
 			WorkMonthRequest months = WorkMonthRequest.fromQuery(query);
 			if (months == null || months.grantids.Length == 0)
 			{
-				writeResult(context, false, "Missing grant number or date");
-				return;
+				return new Result(false, "Missing grant number or date");
 			}
 			months.employee = id;
-			Dictionary<string, object> groupTimes = months.getTimes(grants)
-				.ToDictionary(kv => kv.Key, kv => (object)kv.Value.ToArray());
+			Dictionary<string, IEnumerable<double>> groupTimes = months.getTimes(grants)
+				.ToDictionary(kv => kv.Key, kv => kv.Value);
 			if (query["grant"] != null || extras)
 			{
 				if (extras || query["grant"].Contains("non-grant"))
@@ -263,18 +260,18 @@ namespace GrantApplication
 							? (int)GrantMonth.status.New
 							: rightmonth.curStatus);
 					});
-				groupTimes["status"] = status;
+				
+				return new Result(true, new { hours = groupTimes, status = status });
 			}
-			writeResult(context, true, groupTimes);
+			return new Result(true, groupTimes);
 		}
 
-		private void sendApproval(HttpContext context, int? id, NameValueCollection query)
+		private Result sendApproval(int id, NameValueCollection query, HttpContext context)
 		{
 			bool approve;
 			if (!bool.TryParse(query["approval"], out approve))
 			{
-				writeResult(context, false, "Formatting error in field");
-				return;
+				return new Result(false, "Formatting error in field");
 			}
 
 			// this is a terrible thing to be doing
@@ -290,8 +287,7 @@ namespace GrantApplication
 			WorkMonthRequest queryRequest = WorkMonthRequest.fromQuery(query);
 			if (queryRequest == null || queryRequest.grantMonths == null || queryRequest.grantMonths.Count() == 0)
 			{
-				writeResult(context, false, "Missing required field or no such entry");
-				return;
+				return new Result(false, "Missing required field or no such entry");
 			}
 			else
 			{
@@ -328,21 +324,20 @@ namespace GrantApplication
 						return new { success = false, message = "Error sending email" };
 					}
 				});
-				writeResult(context, result.success, result.message);
+				return new Result(result.success, result.message);
 			}
 		}
 
-		private void doUpdateHours(HttpContext context, int? id, NameValueCollection query)
+		private Result doUpdateHours(int id, NameValueCollection query)
 		{
 			string hoursstr = query["hours"];
 
 			WorkMonthRequest workrequest = WorkMonthRequest.fromQuery(query);
 			if (workrequest == null || !workrequest.supervisor.HasValue || hoursstr == null)
 			{
-				writeResult(context, false, "missing or misformatted required field(s)");
-				return;
+				return new Result(false, "missing or misformatted required field(s)");
 			}
-			workrequest.employee = id.Value;
+			workrequest.employee = id;
 
 			Dictionary<int, double[]> hoursById = null;
 			try
@@ -355,19 +350,18 @@ namespace GrantApplication
 			}
 			catch (Exception)
 			{
-				writeResult(context, false, "unable to parse hours");
-				return;
+				return new Result(false, "unable to parse hours");
 			}
 			//catch (Exception e)
 			//{
 			//	string result = string.Format("parsing error in hours: {0}\nstack trace: {1}", e.Message, e.StackTrace).Replace("\n", Environment.NewLine);
-			//	writeResult(context, false, result);
+			//	return new Result(false, result);
 			//}
 			finally { }
 
 			workrequest.grantids = hoursById.Keys.ToArray();
 			Dictionary<string, int> success = updateHours(workrequest, hoursById);
-			writeResult(context, true, success);
+			return new Result(true, success);
 		}
 
 		private Dictionary<string, int> updateHours(WorkMonthRequest workrequest, Dictionary<int, double[]> hours)
@@ -433,13 +427,12 @@ namespace GrantApplication
 			return "unchanged";
 		}
 
-		private void sendRequest(HttpContext context, int? id, NameValueCollection query)
+		private Result sendRequest(int id, NameValueCollection query)
 		{
 			WorkMonthRequest request = WorkMonthRequest.fromQuery(query);
 			if (request == null || !request.supervisor.HasValue || request.grantids.Length != 1)
 			{
-				writeResult(context, false, "missing or misformatted required field(s)");
-				return;
+				return new Result(false, "missing or misformatted required field(s)");
 			}
 			request.employee = id;
 
@@ -449,8 +442,7 @@ namespace GrantApplication
 				GrantMonth.status status = (GrantMonth.status)oldgm.curStatus;
 				if (status != GrantMonth.status.New && status != GrantMonth.status.disapproved)
 				{
-					writeResult(context, false, "request is already " + Enum.GetName(typeof(GrantMonth.status), status));
-					return;
+					return new Result(false, "request is already " + Enum.GetName(typeof(GrantMonth.status), status));
 				}
 			}
 
@@ -471,27 +463,26 @@ namespace GrantApplication
 			if (_Default.sendOffEmailStateless(new int[] { request.supervisor.Value }
 				, request.employee.Value, new DateTime(request.year, request.month + 1, 1), grants.ToList(), emp))
 			{
-				writeResult(context, true, "sent email successfully");
+				return new Result(true, "sent email successfully");
 			}
 			else
 			{
-				writeResult(context, false, "failed to send email");
+				return new Result(false, "failed to send email");
 			}
 		}
 
-		private void getAllSupervisors(HttpContext context, int? id, NameValueCollection query)
+		private Result getAllSupervisors(int id, NameValueCollection query)
 		{
 			IEnumerable<SafeEmployee> supervisors = OleDBHelper.query(
 				"SELECT * FROM EmployeeList WHERE manager = true AND registered = true"
 				, SafeEmployee.fromRow).GroupBy(emp => emp.firstname + emp.lastname).Select(emps => emps.First());
-			writeResult(context, true, supervisors);
+			return new Result(true, supervisors);
 		}
 
-		public void doLogin(HttpContext context, string empId, string pass)
+		private Result doLogin(HttpContext context, string empId, string pass)
 		{
             if (empId == null || pass == null) {
-                writeResult(context, false, "missing required field");
-                return;
+                return new Result(false, "missing required field");
             }
             Employee emp = OleDBHelper.query<Employee>(
                 "SELECT * FROM EmployeeList WHERE registered = true AND EmployeeNum = ?",
@@ -500,38 +491,19 @@ namespace GrantApplication
             ).SingleOrDefault();
             if (!emp.registered)
             {
-                writeResult(context, false, "employee not registered");
-                return;
+                return new Result(false, "employee not registered");
             }
 			if (!Employee.TestPassword(emp, context.Request.QueryString["pass"]))
 			{
-				writeResult(context, false, "Wrong ID or password");
+				return new Result(false, "Wrong ID or password");
 			}
 			else
 			{
 				context.Session["ID"] = emp.ID;
-				writeResult(context, true, new SafeEmployee(emp));
+				return new Result(true, new SafeEmployee(emp));
 			}
-			return;
 		}
 
-		private void writeResult(HttpContext context, Boolean success, Object message)
-		{
-			JavaScriptSerializer s = new JavaScriptSerializer();
-			var output = new
-			{
-				success = success,
-				message = message,
-				version = "1.0"
-			};
-#if DEBUG
-			context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(output)));
-
-#else
-			context.Response.Write(s.Serialize(output));
-#endif
-
-		}
 		// helper method for viewrequest et al.
 		private Dictionary<string, IEnumerable<double>> renameGrantExtras(Dictionary<string, IEnumerable<double>> groupTimes)
 		{
@@ -566,7 +538,16 @@ namespace GrantApplication
 				yield return val;
 		}
 
-
+		class Result
+		{
+			public bool success;
+			public object message;
+			public Result(bool success, object message)
+			{
+				this.success = success;
+				this.message = message;
+			}
+		}
 
 		class SafeEmployee
 		{
