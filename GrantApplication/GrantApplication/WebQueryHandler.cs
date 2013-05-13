@@ -201,8 +201,8 @@ namespace GrantApplication
 					"SELECT * FROM GrantInfo WHERE ID = " + month.grantID,
 					Grant.fromRow
 				).SingleOrDefault();
-				SafeEmployee employee = emps.Where(e => e.id == month.EmpID.ToString()).SingleOrDefault();
-				SafeEmployee supervisor = emps.Where(e => e.id == month.supervisorID.ToString()).SingleOrDefault();
+				SafeEmployee employee = emps.Where(e => e.id == month.EmpID).SingleOrDefault();
+				SafeEmployee supervisor = emps.Where(e => e.id == month.supervisorID).SingleOrDefault();
 				context.Session["ID"] = month.supervisorID;
 				context.Session["WorkMonthID"] = month.ID;
 
@@ -548,12 +548,12 @@ namespace GrantApplication
 		{
 			public string firstname;
 			public string lastname;
-			public string id;
+			public int id;
 			public SafeEmployee(Employee source)
 			{
 				firstname = source.firstName;
 				lastname = source.lastName;
-				id = source.ID.ToString();
+				id = source.ID;
 			}
 			public static SafeEmployee fromRow(DataRow row) {
 				return new SafeEmployee(new Employee(row));
