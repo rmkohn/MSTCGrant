@@ -45,14 +45,8 @@ namespace GrantApplication
 			else
 			{
 				JavaScriptSerializer s = new JavaScriptSerializer();
-				var output = new
-				{
-					success = result.success,
-					message = result.message,
-					version = "1.0"
-				};
 #if DEBUG
-				context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(output)));
+				context.Response.Write(JsonPrettyPrinter.FormatJson(s.Serialize(result)));
 #else
 					context.Response.Write(s.Serialize(output));
 #endif
@@ -542,6 +536,7 @@ namespace GrantApplication
 		{
 			public bool success;
 			public object message;
+			public string version = "1.0";
 			public Result(bool success, object message)
 			{
 				this.success = success;
