@@ -79,8 +79,7 @@ namespace GrantApplication
 				case "listemployees":
 					return testId(id, query, listemployees);
 				case "approve": // plz fix me
-					if (id.HasValue) return sendApproval(id.Value, query, context);
-					else return testId(id, query, null);
+                    return testId(id, query, sendApproval);
 				case "updatehours":
 					return testId(id, query, doUpdateHours);
 				case "sendrequest":
@@ -202,7 +201,7 @@ namespace GrantApplication
 				);
 				if (rows.Count() == 0)
 				{
-					return new Result(true, new { });
+					return new Result(true, new int[] { });
 				}
 
 				IEnumerable<string> empids = rows.Select(row => row["employee"])
@@ -311,22 +310,12 @@ namespace GrantApplication
 			return new Result(true, groupTimes);
 		}
 
-		private Result sendApproval(int id, NameValueCollection query, HttpContext context)
+		private Result sendApproval(int id, NameValueCollection query)
 		{
 			bool approve;
 			if (!bool.TryParse(query["approval"], out approve))
 			{
 				return new Result(false, "Formatting error in field");
-			}
-
-			// this is a terrible thing to be doing
-			// so, you know what?  let's not do it
-			// that's what I'd like to say, but for now it has to stay in
-			int? idFromEmail = (int?)context.Session["WorkMonthID"];
-			if (query["id"] == null && idFromEmail.HasValue)
-			{
-				query = new NameValueCollection(query);
-				query["id"] = idFromEmail.ToString();
 			}
 
 			WorkMonthRequest queryRequest = WorkMonthRequest.fromQuery(query);
@@ -337,6 +326,17 @@ namespace GrantApplication
 			else
 			{
 				IEnumerable<GrantMonth> tmpGm = WorkMonthRequest.fromQuery(query).grantMonths;
+
+                GrantMonth reqmonth = queryRequest.grantMonths.SingleOrDefault();
+                if (reqmonth == null)
+                {
+                    return new Result(false, "no such request");
+                }
+                if (reqmonth.curStatus != (int)GrantMonth.status.pending)
+                {
+                    return new Result(false, "request is already " + (Enum.GetName(typeof(GrantMonth.status), reqmonth.curStatus)));
+                }
+
 				// It seems silly not to support both input types, but we have to have the non-grant/leave WorkMonths for approveOrDisapprove()
 				// and have no way of ensuring they're included (save for some inner join shenanigans)
 				// So instead, let's get one of the GrantMonths we grabbed already and use it to collect the stragglers
@@ -346,7 +346,7 @@ namespace GrantApplication
 				// ^ union() would be better but doesn't support lambdas; this is the stackoverflow-approved substitute
 				
 				string reason = query["comment"];
-				reason = reason != null ? reason : "No reason given.";
+				reason = String.IsNullOrWhiteSpace(reason) ? reason : "No reason given.";
 				var result = OleDBHelper.withConnection(conn =>
 				{
 					Employee user = OleDBHelper.query(conn,
