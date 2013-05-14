@@ -72,13 +72,13 @@ namespace GrantApplication
 
 		// add " AND sqlkey[i] = ?" type conditions to a SELECT query, for the non-null entries in sqlvals
 		// returns the new query string directly, and the non-null values in sqlparams
-		static public String appendConditions(string sqlquery, string[] sqlkeys, string[] sqlvals, out IEnumerable<string> sqlparams)
+		static public String appendConditions(string sqlquery, string[] sqlkeys, string[] sqlvals, string[] sqlrelations, out IEnumerable<string> sqlparams)
 		{
-			IEnumerable<Tuple<string, string>> sqlkv = sqlkeys
-				.Zip(sqlvals, (key, val) => new Tuple<string, string>(key, val))
-				.Where(kv => kv.Item2 != null);
-			sqlkv.ForEach(kv => sqlquery += " AND " + kv.Item1 + " = ?");
-			sqlparams = sqlkv.Select(kv => kv.Item2);
+			int len = new string[][] { sqlkeys, sqlvals, sqlrelations }.Min(array => array.Length);
+			var conditions = Enumerable.Range(0, len).Select(i => new { key = sqlkeys[i], val = sqlvals[i], rel = sqlrelations[i] })
+				.Where(cond => cond.val != null);
+			conditions.ForEach(cond => sqlquery += " AND " + cond.key + cond.rel + "?");
+			sqlparams = conditions.Select(kv => kv.val);
 			return sqlquery;
 		}
 

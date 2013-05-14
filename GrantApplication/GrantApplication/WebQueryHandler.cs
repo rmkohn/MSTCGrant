@@ -28,6 +28,10 @@ namespace GrantApplication
 
 		static string[] extragrants = { Globals.GrantID_Leave.ToString(), Globals.GrantID_NonGrant.ToString() };
 		static string[] noextragrants = { };
+		static string sqlspecialgrants = "("
+				+ Globals.GrantID_Leave + ", "
+				+ Globals.GrantID_NonGrant + ", "
+				+ Globals.GrantID_Placeholder + ")";
 
 		public bool IsReusable
 		{
@@ -122,10 +126,7 @@ namespace GrantApplication
 		{
 			IEnumerable<Grant> grants = OleDBHelper.query(
 				"SELECT GrantInfo.* FROM GrantInfo"
-				+ " WHERE GrantInfo.ID NOT IN ( "
-				+ Globals.GrantID_Leave + ", " 
-				+ Globals.GrantID_NonGrant + ", "
-				+ Globals.GrantID_Placeholder + ")"
+				+ " WHERE GrantInfo.ID NOT IN "+ sqlspecialgrants
 				, Grant.fromRow
 			);
 			return new Result(true, grants);
@@ -156,35 +157,62 @@ namespace GrantApplication
 			{
 				return new Result(false, query["status"] + " is not a valid status");
 			}
-			string sqlquery = "SELECT WorkMonth.* FROM WorkMonth, GrantInfo WHERE GrantInfo.ID = WorkMonth.GrantID"
-				//string sqlquery = "SELECT WorkMonth.* FROM WorkMonth"
-							+ " AND (EmpID = " + id + " OR SupervisorID = " + id + ")";
-			//string[] sqlkeys = new string[] { "GrantInfo.GrantNumber", "EmployeeList.EmployeeNum", "WorkMonth.Status" };
-			string[] sqlkeys = { "GrantInfo.ID", "WorkMonth.EmpID", "WorkMonth.SupervisorID", "WorkMonth.Status" };
-			string[] sqlvals = { query["grant"], query["employee"], query["supervisor"], status };
-			IEnumerable<string> sqlparams;
-			sqlquery = OleDBHelper.appendConditions(sqlquery, sqlkeys, sqlvals, out sqlparams);
+			int maxage;
+			int? minmonth = null;
+			if (int.TryParse(query["maxage"], out maxage))
+			{
+				DateTime now = DateTime.Now;
+				minmonth = now.Year * 12 + now.Month - 1 - maxage;
+			}
+		
+			// access doesn't support full outer join
+			// also, not sure what the [month] brackets are for, but the query designer was very insistent on them
+			string part1 = "SELECT DISTINCT timeA.GrantID AS grant_id, timeA.EmpID AS employee"
+				+ ", timeA.MonthNumber AS [month], timeA.YearNumber AS [year], workA.ID AS wmid, workA.Status AS status"
+				+ " FROM (TimeEntry timeA LEFT OUTER JOIN WorkMonth workA"
+				+ " ON workA.WorkYear = timeA.YearNumber AND workA.WorkingMonth = timeA.MonthNumber"
+				+ " AND workA.EmpID = timeA.EmpID AND workA.GrantID = timeA.GrantID)"
+				+ " WHERE (timeA.EmpID = " + id + " OR timeA.SupervisorID = " + id + ") AND timeA.grantID NOT IN " + sqlspecialgrants;
+			string part2  = "SELECT DISTINCT GrantID AS grant_id, EmpID AS employee, WorkingMonth AS [month], WorkYear AS [year], ID AS wmid, Status as status"
+					+ " FROM WorkMonth workB WHERE (EmpID = " + id + " OR SupervisorID = " + id + ") and GrantID NOT IN " + sqlspecialgrants;
+			string[] sqlkeys1 = { "timeA.GrantID", "timeA.EmpID", "timeA.SupervisorID", "(timeA.YearNumber*12+timeA.MonthNumber)" };
+			string[] sqlkeys2 = { "workB.GrantID", "workB.EmpID", "workB.SupervisorID", "(workB.WorkYear*12+workB.WorkingMonth)", "workB.Status" };
+			string[] sqlrelations = { "=", "=", "=", ">=", "=" };
+			string[] sqlvals = { query["grant"], query["employee"], query["supervisor"], minmonth.HasValue ? minmonth.ToString() : null, status };
+
+			IEnumerable<string> sqlparams1, sqlparams2;
+			part1 = OleDBHelper.appendConditions(part1, sqlkeys1, sqlvals, sqlrelations, out sqlparams1);
+			part2 = OleDBHelper.appendConditions(part2, sqlkeys2, sqlvals, sqlrelations, out sqlparams2);
+			if (status == ((int)GrantMonth.status.New).ToString())
+			{
+				part1 += " AND workA.status is null";
+				part2 += " AND status is null";
+			}
 			return OleDBHelper.withConnection(conn => {
-				IEnumerable<GrantMonth> gm = OleDBHelper.query(conn,
-					sqlquery,
-					GrantMonth.fromRow,
-					sqlparams.ToArray()
+				IEnumerable<DataRow> rows = OleDBHelper.query(conn,
+					part1 + " UNION " + part2,
+					row => row,
+					sqlparams1.Concat(sqlparams2).ToArray()
 				);
-				IEnumerable<string> empids = gm.SelectMany(month => new int[] { month.EmpID, month.supervisorID })
+				if (rows.Count() == 0)
+				{
+					return new Result(true, new { });
+				}
+
+				IEnumerable<string> empids = rows.Select(row => row["employee"])
 					.Distinct().Select(eid=>eid.ToString());
 				Dictionary<int, SafeEmployee> empnames = OleDBHelper.query(conn,
 					"SELECT * FROM EmployeeList WHERE ID IN " + OleDBHelper.sqlInArrayParams(empids)
 					, SafeEmployee.fromRow
 					, empids.ToArray()).ToDictionary(emp => emp.id);
-				return new Result(true, gm.Select(month => new
+
+				return new Result(true, rows.Select(row => new
 				{
-					month = month.workMonth,
-					year = month.workYear,
-					status = Enum.GetName(typeof(GrantMonth.status), month.curStatus),
-					id = month.ID,
-					supervisor = empnames[month.supervisorID],
-					employee = empnames[month.EmpID],
-					grant = month.grantID
+					month = (int)row["month"],
+					year =  (int)row["year"],
+					status = row.IsNull("status") ? GrantMonth.status.New.ToString() : Enum.GetName(typeof(GrantMonth.status), (int)row["status"]),
+					employee = empnames[(int)row["employee"]],
+					grant = (int)row["grant_id"]
 				}));
 			});
 		}
