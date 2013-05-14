@@ -147,10 +147,11 @@ namespace GrantApplication
 
 		private Result listrequests(int id, NameValueCollection query)
 		{
-			string status = null;
+			//string status = null;
+			int? status = null;
 			try
 			{
-				status = ((int)Enum.Parse(typeof(GrantMonth.status), query["status"], true)).ToString();
+				status = ((int)Enum.Parse(typeof(GrantMonth.status), query["status"], true));
 			}
 			catch (ArgumentNullException) { }
 			catch (ArgumentException)
@@ -167,32 +168,37 @@ namespace GrantApplication
 		
 			// access doesn't support full outer join
 			// also, not sure what the [month] brackets are for, but the query designer was very insistent on them
-			string part1 = "SELECT DISTINCT timeA.GrantID AS grant_id, timeA.EmpID AS employee"
-				+ ", timeA.MonthNumber AS [month], timeA.YearNumber AS [year], workA.ID AS wmid, workA.Status AS status"
-				+ " FROM (TimeEntry timeA LEFT OUTER JOIN WorkMonth workA"
-				+ " ON workA.WorkYear = timeA.YearNumber AND workA.WorkingMonth = timeA.MonthNumber"
-				+ " AND workA.EmpID = timeA.EmpID AND workA.GrantID = timeA.GrantID)"
-				+ " WHERE (timeA.EmpID = " + id + " OR timeA.SupervisorID = " + id + ") AND timeA.grantID NOT IN " + sqlspecialgrants;
-			string part2  = "SELECT DISTINCT GrantID AS grant_id, EmpID AS employee, WorkingMonth AS [month], WorkYear AS [year], ID AS wmid, Status as status"
-					+ " FROM WorkMonth workB WHERE (EmpID = " + id + " OR SupervisorID = " + id + ") and GrantID NOT IN " + sqlspecialgrants;
-			string[] sqlkeys1 = { "timeA.GrantID", "timeA.EmpID", "timeA.SupervisorID", "(timeA.YearNumber*12+timeA.MonthNumber)" };
-			string[] sqlkeys2 = { "workB.GrantID", "workB.EmpID", "workB.SupervisorID", "(workB.WorkYear*12+workB.WorkingMonth)", "workB.Status" };
-			string[] sqlrelations = { "=", "=", "=", ">=", "=" };
-			string[] sqlvals = { query["grant"], query["employee"], query["supervisor"], minmonth.HasValue ? minmonth.ToString() : null, status };
 
-			IEnumerable<string> sqlparams1, sqlparams2;
-			part1 = OleDBHelper.appendConditions(part1, sqlkeys1, sqlvals, sqlrelations, out sqlparams1);
-			part2 = OleDBHelper.appendConditions(part2, sqlkeys2, sqlvals, sqlrelations, out sqlparams2);
-			if (status == ((int)GrantMonth.status.New).ToString())
+			string part1 = "SELECT grant_id, employee, [month], [year], wmid, status, SUM([time]) AS [time] FROM"
+				+ " (SELECT timeA.GrantID AS grant_id, timeA.EmpID AS employee, timeA.MonthNumber AS [month], timeA.YearNumber AS [year]"
+				+ ", workA.ID AS wmid, workA.Status AS status, timeA.SupervisorID as supervisor, timeA.GrantHours AS [time]"
+				+ " FROM (TimeEntry timeA LEFT OUTER JOIN WorkMonth workA"
+					+ " ON workA.WorkYear = timeA.YearNumber AND workA.WorkingMonth = timeA.MonthNumber AND workA.EmpID = timeA.EmpID"
+					+ " AND workA.GrantID = timeA.GrantID)"
+				+ " UNION"
+				+ " SELECT workB.GrantID AS grant_id, workB.EmpID AS employee, workB.WorkingMonth AS [month], workB.WorkYear AS [year]"
+				+ ", workB.ID AS wmid, workB.Status AS status, workB.SupervisorID as supervisor, timeB.GrantHours AS [time]"
+				+ " FROM (TimeEntry timeB RIGHT OUTER JOIN WorkMonth workB"
+					+ " ON workB.WorkYear = timeB.YearNumber AND workB.WorkingMonth = timeB.MonthNumber AND workB.EmpID = timeB.EmpID "
+					+ " AND workB.GrantID = timeB.GrantID)) derivedtbl_1"
+			+ " WHERE (employee = " + id + " OR supervisor = " + id + ") AND grant_id NOT IN " + sqlspecialgrants;
+
+			string part2 = " GROUP BY grant_id, employee, [month], [year], wmid, status"
+				+ " HAVING (SUM([time]) > 0) or status IS NOT NULL";
+			string[] sqlkeys = { "grant_id", "employee", "supervisor", "(year*12+month)" };
+			string[] sqlrelations = { "=", "=", "=", ">=" };
+			string[] sqlvals = { query["grant"], query["employee"], query["supervisor"], minmonth.HasValue ? minmonth.ToString() : null };
+			IEnumerable<string> sqlparams;
+			part1 = OleDBHelper.appendConditions(part1, sqlkeys, sqlvals, sqlrelations, out sqlparams);
+			if (status != null)
 			{
-				part1 += " AND workA.status is null";
-				part2 += " AND status is null";
+				part1 += " AND status " + (status == (int)GrantMonth.status.New ? " IS NULL " : " = " + status);
 			}
 			return OleDBHelper.withConnection(conn => {
 				IEnumerable<DataRow> rows = OleDBHelper.query(conn,
-					part1 + " UNION " + part2,
+					part1 + part2,
 					row => row,
-					sqlparams1.Concat(sqlparams2).ToArray()
+					sqlparams.ToArray()
 				);
 				if (rows.Count() == 0)
 				{
