@@ -67,7 +67,7 @@ namespace GrantApplication
 				case "login":
 					return doLogin(context, query["id"], query["pass"]);
 				case "email":
-					return doEmailGrantId(context, query);
+					return doEmailGrantId(query);
 				case "listgrants":
 					return testId(id, query, listgrants);
 				case "listallgrants":
@@ -79,7 +79,7 @@ namespace GrantApplication
 				case "listemployees":
 					return testId(id, query, listemployees);
 				case "approve": // plz fix me
-                    return testId(id, query, sendApproval);
+					return sendApproval(query);
 				case "updatehours":
 					return testId(id, query, doUpdateHours);
 				case "sendrequest":
@@ -222,7 +222,7 @@ namespace GrantApplication
 			});
 		}
 
-		private Result doEmailGrantId(HttpContext context, NameValueCollection query)
+		private Result doEmailGrantId(NameValueCollection query)
 		{
 			WorkMonthRequest workmonth = WorkMonthRequest.fromQuery(query);
 			if (workmonth == null)
@@ -253,8 +253,6 @@ namespace GrantApplication
 				).SingleOrDefault();
 				SafeEmployee employee = emps.Where(e => e.id == month.EmpID).SingleOrDefault();
 				SafeEmployee supervisor = emps.Where(e => e.id == month.supervisorID).SingleOrDefault();
-				context.Session["ID"] = month.supervisorID;
-				context.Session["WorkMonthID"] = month.ID;
 
 				var result = new
 				{
@@ -310,7 +308,7 @@ namespace GrantApplication
 			return new Result(true, groupTimes);
 		}
 
-		private Result sendApproval(int id, NameValueCollection query)
+		private Result sendApproval(NameValueCollection query)
 		{
 			bool approve;
 			if (!bool.TryParse(query["approval"], out approve))
@@ -319,7 +317,7 @@ namespace GrantApplication
 			}
 
 			WorkMonthRequest queryRequest = WorkMonthRequest.fromQuery(query);
-			if (queryRequest == null || queryRequest.grantMonths == null || queryRequest.grantMonths.Count() == 0)
+			if (queryRequest == null || queryRequest.grantMonths == null || queryRequest.grantMonths.Count() == 0 || !queryRequest.employee.HasValue)
 			{
 				return new Result(false, "Missing required field or no such entry");
 			}
@@ -338,8 +336,7 @@ namespace GrantApplication
                 }
 
 				// It seems silly not to support both input types, but we have to have the non-grant/leave WorkMonths for approveOrDisapprove()
-				// and have no way of ensuring they're included (save for some inner join shenanigans)
-				// So instead, let's get one of the GrantMonths we grabbed already and use it to collect the stragglers
+				// Let's get one of the GrantMonths we grabbed already and use it to collect the stragglers
 				WorkMonthRequest workrequest = WorkMonthRequest.fromGrantMonths(tmpGm, extragrants.Select(eg => int.Parse(eg)));
 				IEnumerable<GrantMonth> extraGm = workrequest.grantMonths;
 				GrantMonth[] workmonths = tmpGm.Concat(extraGm).GroupBy(month => month.ID).Select(months => months.First()).ToArray();
@@ -350,7 +347,7 @@ namespace GrantApplication
 				var result = OleDBHelper.withConnection(conn =>
 				{
 					Employee user = OleDBHelper.query(conn,
-						"SELECT * FROM EmployeeList WHERE ID = " + id, Employee.fromRow
+						"SELECT * FROM EmployeeList WHERE ID = " + workmonths[0].EmpID, Employee.fromRow
 					).SingleOrDefault();
 					List<Grant> grants = OleDBHelper.query(conn,
 						"SELECT * FROM GrantInfo WHERE ID IN (" + OleDBHelper.sqlInArrayParams(workmonths) + ")"
